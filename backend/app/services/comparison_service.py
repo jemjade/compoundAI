@@ -137,6 +137,7 @@ class ComparisonService:
                     input_type=deidentification_result.input_type,
                     detected_entity_count=(deidentification_result.detected_entity_count),
                     masked_entity_count=deidentification_result.masked_entity_count,
+                    masked_file_available=(deidentification_result.masked_file_path is not None),
                     latency_ms=deidentification_result.metrics.get("pipeline_latency_ms"),
                     error_message=deidentification_result.error_message,
                 )
@@ -155,6 +156,11 @@ class ComparisonService:
                         result.markdown_path,
                         result.text_path,
                         (deidentification_result.result_path if deidentification_result else None),
+                        (
+                            deidentification_result.masked_file_path
+                            if deidentification_result
+                            else None
+                        ),
                     }
                     if path is not None
                 ]

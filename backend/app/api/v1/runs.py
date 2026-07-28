@@ -50,6 +50,7 @@ async def get_run(run_id: UUID, user: CurrentUser, session: SessionDep) -> RunSu
                 input_type=result.input_type,
                 detected_entity_count=result.detected_entity_count,
                 masked_entity_count=result.masked_entity_count,
+                masked_file_available=result.masked_file_path is not None,
                 latency_ms=result.metrics.get("pipeline_latency_ms"),
                 error_message=result.error_message,
             )
@@ -96,10 +97,27 @@ async def get_artifact(
     storage: StorageDep,
 ) -> FileResponse:
     await owned_run(run_id, user.id, session)
-    if artifact == "deidentified":
+    if artifact in {"deidentified", "masked"}:
         deidentification_result = await session.scalar(
             select(DeidentificationResult).where(DeidentificationResult.run_id == run_id)
         )
+        if artifact == "masked":
+            if (
+                deidentification_result is None
+                or deidentification_result.masked_file_path is None
+                or not storage.resolve(deidentification_result.masked_file_path).is_file()
+            ):
+                raise AppError(
+                    "ARTIFACT_NOT_FOUND",
+                    "Masked file is not available.",
+                    404,
+                )
+            masked_path = storage.resolve(deidentification_result.masked_file_path)
+            return FileResponse(
+                masked_path,
+                media_type="application/octet-stream",
+                filename=masked_path.name,
+            )
         if (
             deidentification_result is None
             or deidentification_result.result_path is None

@@ -125,13 +125,24 @@ export function ExperimentPage() {
                   </button>
                 ))}
                 {run.deidentification_status === "SUCCEEDED" && (
-                  <button
-                    type="button"
-                    className="artifact-button"
-                    onClick={() => downloadArtifact(run.id, "deidentified")}
-                  >
-                    ↓ deidentified
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="artifact-button"
+                      onClick={() => downloadArtifact(run.id, "deidentified")}
+                    >
+                      ↓ deidentified
+                    </button>
+                    {run.deidentification?.masked_file_available && (
+                      <button
+                        type="button"
+                        className="artifact-button"
+                        onClick={() => downloadArtifact(run.id, "masked")}
+                      >
+                        ↓ masked file
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             )}

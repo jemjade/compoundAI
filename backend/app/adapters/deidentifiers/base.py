@@ -13,6 +13,8 @@ class DeidentificationExecutionResult(BaseModel):
     raw_data: dict[str, Any] | list[Any] | str | None = None
     detected_entity_count: int | None = None
     masked_entity_count: int | None = None
+    # Adapter가 만든 로컬 임시 산출물 경로이며 결과 JSON에는 절대 경로를 노출하지 않는다.
+    masked_file_path: Path | None = Field(default=None, exclude=True)
     metrics: dict[str, Any] = Field(default_factory=dict)
 
 

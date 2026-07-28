@@ -1010,14 +1010,44 @@ FASOO_INPUT_TYPE=TEXT
 
 ```env
 FASOO_ENABLED=true
-FASOO_BASE_URL=http://fasoo.internal
-FASOO_API_KEY=replace-with-secret
+FASOO_BASE_URL=https://intra-dev.agentone.kr:18443
 FASOO_TIMEOUT_SECONDS=300
-FASOO_INPUT_TYPE=TEXT
+FASOO_ARTIFACT_WAIT_SECONDS=5
+FASOO_DETECT_PATH=/piiapi/detect/system/path
+FASOO_CONFIGURATION_PATH=/piiapi/configuration
+NAS_MOUNT_PATH=/app/data/dwp_comp
+FASOO_NAS_PATH=/dwp_comp
+FASOO_WORK_SUBDIR=parselab
+FASOO_PATTERNS=8352e3cefcf841b8ae8eacbafc9dc2e8,470f4ac178d948f389d848e705306ddd,75a718ffe4d646008c606b0578ad2e78,68502af4bf7d4274997d3698243a7b69
+FASOO_LABELS=SS_BRAND,AD_METRO,AD_CITY,AD_ADDRESS,AD_BRAND,AD_DETAIL,AD_POSTAL
+FASOO_INPUT_TYPE=ORIGINAL_FILE
 ```
 
 `FASOO_INPUT_TYPE`은 `ORIGINAL_FILE`, `TEXT`, `MARKDOWN`, `CANONICAL_JSON` 중 하나입니다.
-API Key와 문서 원문은 애플리케이션 로그에 기록하지 않습니다.
+마스킹된 원본 파일이 필요하면 `ORIGINAL_FILE`을 사용합니다. Adapter는 원본을
+`NAS_MOUNT_PATH/parselab/{run_id}/input` 아래에 복사하고 마스킹 결과 공간을
+`masked`로 분리한 뒤 다음 동기 계약을 호출합니다.
+
+```text
+POST /piiapi/detect/system/path
+sync="true"
+inputPath=/dwp_comp/parselab/{run_id}/input/input.{ext}
+outputPath=/dwp_comp/parselab/{run_id}/masked/result.json
+maskedPath=/dwp_comp/parselab/{run_id}/masked/masked.{ext}
+```
+
+`NAS_MOUNT_PATH`는 Backend Pod가 PVC를 보는 경로이고 `FASOO_NAS_PATH`는 파수
+서버가 같은 공유 경로를 보는 이름입니다. Backend Pod에는 예를 들어
+`dwp-nas-volume` PVC를 `/app/data/dwp_comp`에 Mount해야 합니다. 개발계 파수
+주소로 나가는 Egress와 방화벽 허용도 별도로 필요합니다. 사설 CA를 사용하면
+인증서 Bundle을 Pod에 Mount하고 `FASOO_CA_BUNDLE`에 파일 경로를 지정합니다.
+
+정상 완료 시 결과 JSON은 `deidentified` 산출물로, 마스킹 파일은 `masked`
+산출물로 다운로드할 수 있습니다. `FASOO_API_KEY`가 지정된 환경에서만 Bearer
+Header를 전송하며, API Key와 문서 원문은 애플리케이션 로그에 기록하지 않습니다.
+`patternOptions`, `labelOptions` 등 전체 정책을 그대로 지정해야 하는 환경에서는
+`FASOO_RULE_JSON`에 `rule` 객체 전체를 JSON 한 줄로 설정하면 개별 Pattern/Label
+환경변수보다 우선 적용됩니다.
 
 ## 로컬 개발
 

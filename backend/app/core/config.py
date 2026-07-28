@@ -29,6 +29,20 @@ class Settings(BaseSettings):
     fasoo_base_url: str | None = None
     fasoo_api_key: str | None = None
     fasoo_timeout_seconds: int = 300
+    fasoo_artifact_wait_seconds: float = 5.0
+    fasoo_detect_path: str = "/piiapi/detect/system/path"
+    fasoo_configuration_path: str = "/piiapi/configuration"
+    nas_mount_path: Path = Path("/app/data/dwp_comp")
+    fasoo_nas_path: str = "/dwp_comp"
+    fasoo_work_subdir: str = "parselab"
+    fasoo_ca_bundle: Path | None = None
+    fasoo_patterns: Annotated[list[str], NoDecode] = []
+    fasoo_labels: Annotated[list[str], NoDecode] = []
+    fasoo_rule_json: str | None = None
+    fasoo_masking_char: str = "*"
+    fasoo_rule_version: str = "1.3"
+    fasoo_system_code: str = "FASOO"
+    fasoo_system_name: str = "파수"
     fasoo_input_type: Literal[
         "ORIGINAL_FILE",
         "TEXT",
@@ -56,6 +70,18 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+
+    @field_validator("fasoo_patterns", "fasoo_labels", mode="before")
+    @classmethod
+    def split_fasoo_policy_values(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("fasoo_ca_bundle", mode="before")
+    @classmethod
+    def blank_ca_bundle_is_none(cls, value: object) -> object:
+        return None if value == "" else value
 
     @property
     def max_upload_size_bytes(self) -> int:

@@ -72,6 +72,7 @@ export type DeidentificationSummary = {
   input_type: string;
   detected_entity_count: number | null;
   masked_entity_count: number | null;
+  masked_file_available: boolean;
   latency_ms: number | null;
   error_message: string | null;
 };

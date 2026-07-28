@@ -225,6 +225,7 @@ class ExperimentService:
                     input_type=result.input_type,
                     detected_entity_count=result.detected_entity_count,
                     masked_entity_count=result.masked_entity_count,
+                    masked_file_available=result.masked_file_path is not None,
                     latency_ms=result.metrics.get("pipeline_latency_ms"),
                     error_message=result.error_message,
                 )

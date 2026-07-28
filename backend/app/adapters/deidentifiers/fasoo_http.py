@@ -1,8 +1,10 @@
-"""파수 비식별화를 위한 HTTP 전송 및 요청·응답 매핑."""
+"""파수 NAS 경로 비식별화 API 전송과 산출물 정규화."""
 
 import asyncio
 import json
-from pathlib import Path
+import re
+import shutil
+from pathlib import Path, PurePosixPath
 from time import monotonic
 from typing import Any
 from urllib.parse import urljoin
@@ -16,73 +18,8 @@ from app.adapters.deidentifiers.base import (
 from app.core.config import Settings
 from app.core.exceptions import AppError
 
-
-def build_fasoo_request(
-    content: str,
-    input_type: str,
-    config: dict[str, Any],
-) -> dict[str, Any]:
-    """ParseLab의 고정 입력 규약을 파수 JSON 요청 규약으로 매핑한다.
-
-    운영 환경별로 파수 요청 스키마가 다를 수 있으므로 이 매핑을 별도로 격리한다.
-    """
-    return {
-        "input_type": input_type,
-        "content": content,
-        "config": config,
-    }
-
-
-def parse_fasoo_response(payload: Any) -> DeidentificationExecutionResult:
-    """알려진 파수 응답 변형을 하나의 내부 결과 모델로 정규화한다."""
-    if not isinstance(payload, dict):
-        raise AppError("FASOO_EXECUTION_FAILED", "Fasoo returned an invalid response.")
-    result = payload.get("result", payload)
-    if isinstance(result, str):
-        return DeidentificationExecutionResult(
-            provider="FASOO",
-            deidentified_text=result,
-            raw_data=payload,
-        )
-    if not isinstance(result, dict):
-        raise AppError("FASOO_EXECUTION_FAILED", "Fasoo response did not contain a result.")
-
-    text = next(
-        (
-            result[key]
-            for key in (
-                "deidentified_text",
-                "deidentifiedText",
-                "masked_text",
-                "maskedText",
-                "output",
-                "text",
-                "content",
-            )
-            if isinstance(result.get(key), str)
-        ),
-        None,
-    )
-    if text is None:
-        raise AppError(
-            "FASOO_EXECUTION_FAILED",
-            "Fasoo response did not contain deidentified text.",
-        )
-    entities = result.get("entities")
-    detected_count = result.get("detected_entity_count", result.get("detectedCount"))
-    masked_count = result.get("masked_entity_count", result.get("maskedCount"))
-    if detected_count is None and isinstance(entities, list):
-        detected_count = len(entities)
-    if masked_count is None:
-        masked_count = detected_count
-    return DeidentificationExecutionResult(
-        provider="FASOO",
-        deidentified_text=text,
-        raw_data=payload,
-        detected_entity_count=int(detected_count) if detected_count is not None else None,
-        masked_entity_count=int(masked_count) if masked_count is not None else None,
-        metrics=result.get("metrics") if isinstance(result.get("metrics"), dict) else {},
-    )
+_SAFE_PATH_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
+_TEXT_SUFFIXES = {".json", ".md", ".txt"}
 
 
 def _endpoint_url(base_url: str | None, path: str) -> str:
@@ -91,11 +28,285 @@ def _endpoint_url(base_url: str | None, path: str) -> str:
             "FASOO_CONFIGURATION_INVALID",
             "FASOO_BASE_URL must be an http or https URL when Fasoo is enabled.",
         )
+    if not path.startswith("/") or path.startswith("//"):
+        raise AppError(
+            "FASOO_CONFIGURATION_INVALID",
+            "Fasoo API paths must be absolute URL paths.",
+        )
     return urljoin(f"{base_url.rstrip('/')}/", path.lstrip("/"))
 
 
+def build_fasoo_rule(
+    settings: Settings,
+    config: dict[str, Any],
+) -> dict[str, Any]:
+    """환경 기본 정책 또는 실행별 ``rule``을 실제 파수 요청 규약으로 만든다."""
+    configured_rule = config.get("rule")
+    if configured_rule is not None:
+        if not isinstance(configured_rule, dict):
+            raise AppError(
+                "FASOO_CONFIGURATION_INVALID",
+                "Fasoo rule must be a JSON object.",
+            )
+        rule = dict(configured_rule)
+    elif settings.fasoo_rule_json:
+        try:
+            loaded_rule = json.loads(settings.fasoo_rule_json)
+        except json.JSONDecodeError as exc:
+            raise AppError(
+                "FASOO_CONFIGURATION_INVALID",
+                "FASOO_RULE_JSON must contain valid JSON.",
+            ) from exc
+        if not isinstance(loaded_rule, dict):
+            raise AppError(
+                "FASOO_CONFIGURATION_INVALID",
+                "FASOO_RULE_JSON must contain a JSON object.",
+            )
+        rule = loaded_rule
+    else:
+        rule = {
+            "masking": True,
+            "maskingChar": settings.fasoo_masking_char,
+            "patterns": settings.fasoo_patterns,
+            "patternOptions": [],
+            "labels": settings.fasoo_labels,
+            "labelOptions": [],
+            "version": settings.fasoo_rule_version,
+            "systemCode": settings.fasoo_system_code,
+            "systemName": settings.fasoo_system_name,
+        }
+
+    if rule.get("masking") is not True:
+        raise AppError(
+            "FASOO_CONFIGURATION_INVALID",
+            "Fasoo path integration requires rule.masking=true.",
+        )
+    patterns = rule.get("patterns", [])
+    labels = rule.get("labels", [])
+    if not isinstance(patterns, list) or not all(isinstance(item, str) for item in patterns):
+        raise AppError(
+            "FASOO_CONFIGURATION_INVALID",
+            "Fasoo rule.patterns must be a string array.",
+        )
+    if not isinstance(labels, list) or not all(isinstance(item, str) for item in labels):
+        raise AppError(
+            "FASOO_CONFIGURATION_INVALID",
+            "Fasoo rule.labels must be a string array.",
+        )
+    if not patterns and not labels:
+        raise AppError(
+            "FASOO_CONFIGURATION_INVALID",
+            "At least one Fasoo pattern or label must be configured.",
+        )
+    return rule
+
+
+def build_fasoo_request(
+    input_path: str,
+    output_path: str,
+    masked_path: str,
+    rule: dict[str, Any],
+) -> dict[str, Any]:
+    """동기 경로 검출 요청을 생성한다. 동기 호출에는 callbackUrl을 보내지 않는다."""
+    return {
+        "sync": "true",
+        "inputPath": input_path,
+        "outputPath": output_path,
+        "maskedPath": masked_path,
+        "rule": rule,
+    }
+
+
+def local_to_fasoo_path(
+    local_path: Path,
+    local_root: Path,
+    fasoo_root: str,
+) -> str:
+    """공유 NAS의 로컬 Mount 경로를 파수 서버가 보는 POSIX 경로로 변환한다."""
+    resolved_root = local_root.resolve()
+    resolved_path = local_path.resolve()
+    try:
+        relative = resolved_path.relative_to(resolved_root)
+    except ValueError as exc:
+        raise AppError(
+            "FASOO_CONFIGURATION_INVALID",
+            "Fasoo staging path is outside NAS_MOUNT_PATH.",
+        ) from exc
+
+    remote_root = PurePosixPath(fasoo_root)
+    if not remote_root.is_absolute() or ".." in remote_root.parts:
+        raise AppError(
+            "FASOO_CONFIGURATION_INVALID",
+            "FASOO_NAS_PATH must be an absolute POSIX path.",
+        )
+    return str(remote_root.joinpath(*relative.parts))
+
+
+def _safe_staging_directory(settings: Settings, output_dir: Path) -> Path:
+    scope = output_dir.name
+    if not scope or not _SAFE_PATH_SEGMENT.fullmatch(scope):
+        raise AppError(
+            "FASOO_CONFIGURATION_INVALID",
+            "Run directory name cannot be used as a Fasoo staging scope.",
+        )
+    local_root = settings.nas_mount_path.resolve()
+    staging_dir = (local_root / settings.fasoo_work_subdir / scope).resolve()
+    if local_root not in staging_dir.parents:
+        raise AppError(
+            "FASOO_CONFIGURATION_INVALID",
+            "FASOO_WORK_SUBDIR escaped NAS_MOUNT_PATH.",
+        )
+    return staging_dir
+
+
+def _find_integer(payload: Any, keys: set[str]) -> int | None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in keys and isinstance(value, (int, float)) and not isinstance(value, bool):
+                return int(value)
+        for value in payload.values():
+            found = _find_integer(value, keys)
+            if found is not None:
+                return found
+    elif isinstance(payload, list):
+        for value in payload:
+            found = _find_integer(value, keys)
+            if found is not None:
+                return found
+    return None
+
+
+def _find_list_length(payload: Any, keys: set[str]) -> int | None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in keys and isinstance(value, list):
+                return len(value)
+        for value in payload.values():
+            found = _find_list_length(value, keys)
+            if found is not None:
+                return found
+    elif isinstance(payload, list):
+        for value in payload:
+            found = _find_list_length(value, keys)
+            if found is not None:
+                return found
+    return None
+
+
+def _find_text(payload: Any) -> str | None:
+    if isinstance(payload, dict):
+        for key in (
+            "deidentified_text",
+            "deidentifiedText",
+            "masked_text",
+            "maskedText",
+            "output",
+            "text",
+            "content",
+        ):
+            value = payload.get(key)
+            if isinstance(value, str):
+                return value
+        values = payload.values()
+    elif isinstance(payload, list):
+        values = payload
+    else:
+        return None
+    for value in values:
+        found = _find_text(value)
+        if found is not None:
+            return found
+    return None
+
+
+def parse_fasoo_result(
+    payload: Any,
+    masked_file_path: Path,
+    *,
+    http_payload: Any = None,
+) -> DeidentificationExecutionResult:
+    """NAS 결과 JSON을 내부 결과로 정규화한다.
+
+    파수 결과 JSON 상세 Schema는 제공되지 않았으므로 알려진 Count/Text 키만
+    보수적으로 읽고 원본 JSON은 그대로 보존한다.
+    """
+    if not isinstance(payload, (dict, list)):
+        raise AppError(
+            "FASOO_EXECUTION_FAILED",
+            "Fasoo result artifact must contain a JSON object or array.",
+        )
+    detected_count = _find_integer(
+        payload,
+        {
+            "detected_entity_count",
+            "detectedEntityCount",
+            "detectedCount",
+            "detectCount",
+            "totalCount",
+        },
+    )
+    if detected_count is None:
+        detected_count = _find_list_length(
+            payload,
+            {"detections", "entities", "items"},
+        )
+    masked_count = _find_integer(
+        payload,
+        {
+            "masked_entity_count",
+            "maskedEntityCount",
+            "maskedCount",
+            "maskingCount",
+        },
+    )
+    if masked_count is None:
+        masked_count = detected_count
+
+    text = _find_text(payload)
+    if text is None and masked_file_path.suffix.lower() in _TEXT_SUFFIXES:
+        text = masked_file_path.read_text(encoding="utf-8", errors="ignore")
+
+    raw_data: dict[str, Any] = {"result": payload}
+    if isinstance(http_payload, (dict, list, str, int, float, bool)):
+        raw_data["http_response"] = http_payload
+    return DeidentificationExecutionResult(
+        provider="FASOO",
+        deidentified_text=text or "",
+        raw_data=raw_data,
+        detected_entity_count=detected_count,
+        masked_entity_count=masked_count,
+        masked_file_path=masked_file_path,
+    )
+
+
+async def _wait_for_artifacts(
+    paths: tuple[Path, ...],
+    wait_seconds: float,
+) -> None:
+    deadline = monotonic() + wait_seconds
+    while True:
+        if all(path.is_file() for path in paths):
+            return
+        if monotonic() >= deadline:
+            missing = ", ".join(path.name for path in paths if not path.is_file())
+            raise AppError(
+                "FASOO_ARTIFACT_NOT_FOUND",
+                f"Fasoo completed without required NAS artifacts: {missing}.",
+            )
+        await asyncio.sleep(0.1)
+
+
+def _optional_response_payload(response: httpx.Response) -> Any:
+    if not response.content:
+        return None
+    try:
+        return response.json()
+    except ValueError:
+        return None
+
+
 class FasooHttpDeidentifierAdapter(DeidentifierAdapter):
-    """전송 세부사항을 Pipeline에서 분리한 채 HTTP로 파수를 호출한다."""
+    """공유 NAS에 파일을 배치하고 파수 동기 경로 검출 API를 호출한다."""
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -105,12 +316,23 @@ class FasooHttpDeidentifierAdapter(DeidentifierAdapter):
             return {}
         return {"Authorization": f"Bearer {self.settings.fasoo_api_key}"}
 
+    def _client_kwargs(self, timeout: float) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "timeout": timeout,
+            "follow_redirects": False,
+        }
+        if self.settings.fasoo_ca_bundle is not None:
+            kwargs["verify"] = str(self.settings.fasoo_ca_bundle)
+        return kwargs
+
     async def health_check(self) -> dict[str, Any]:
-        url = _endpoint_url(self.settings.fasoo_base_url, "/health")
+        url = _endpoint_url(
+            self.settings.fasoo_base_url,
+            self.settings.fasoo_configuration_path,
+        )
         try:
             async with httpx.AsyncClient(
-                timeout=min(self.settings.fasoo_timeout_seconds, 10),
-                follow_redirects=False,
+                **self._client_kwargs(min(self.settings.fasoo_timeout_seconds, 10))
             ) as client:
                 response = await client.get(url, headers=self._headers())
             return {
@@ -132,84 +354,113 @@ class FasooHttpDeidentifierAdapter(DeidentifierAdapter):
         output_dir: Path,
         config: dict[str, Any],
     ) -> DeidentificationExecutionResult:
-        del output_dir
+        del input_type
+        if not await asyncio.to_thread(input_path.is_file):
+            raise AppError("FASOO_EXECUTION_FAILED", "Fasoo input file is not available.")
+        if not await asyncio.to_thread(self.settings.nas_mount_path.is_dir):
+            raise AppError(
+                "FASOO_CONFIGURATION_INVALID",
+                "NAS_MOUNT_PATH is not an available directory.",
+            )
+
+        rule = build_fasoo_rule(self.settings, config)
+        staging_dir = _safe_staging_directory(self.settings, output_dir)
+        suffix = input_path.suffix.lower()
+        input_dir = staging_dir / "input"
+        masked_dir = staging_dir / "masked"
+        staged_input = input_dir / f"input{suffix}"
+        result_artifact = masked_dir / "result.json"
+        masked_artifact = masked_dir / f"masked{suffix}"
+
+        def prepare_staging() -> None:
+            input_dir.mkdir(parents=True, exist_ok=True)
+            masked_dir.mkdir(parents=True, exist_ok=True)
+            for stale_path in (staged_input, result_artifact, masked_artifact):
+                if stale_path.is_file() or stale_path.is_symlink():
+                    stale_path.unlink()
+            shutil.copy2(input_path, staged_input)
+
+        try:
+            await asyncio.to_thread(prepare_staging)
+        except OSError as exc:
+            raise AppError(
+                "FASOO_EXECUTION_FAILED",
+                f"Unable to prepare Fasoo NAS staging: {type(exc).__name__}.",
+            ) from exc
+        request_payload = build_fasoo_request(
+            local_to_fasoo_path(
+                staged_input,
+                self.settings.nas_mount_path,
+                self.settings.fasoo_nas_path,
+            ),
+            local_to_fasoo_path(
+                result_artifact,
+                self.settings.nas_mount_path,
+                self.settings.fasoo_nas_path,
+            ),
+            local_to_fasoo_path(
+                masked_artifact,
+                self.settings.nas_mount_path,
+                self.settings.fasoo_nas_path,
+            ),
+            rule,
+        )
         url = _endpoint_url(
             self.settings.fasoo_base_url,
-            str(config.get("http_endpoint", "/deidentify")),
+            self.settings.fasoo_detect_path,
         )
-        request_config = {key: value for key, value in config.items() if key != "http_endpoint"}
         started = monotonic()
         try:
             async with httpx.AsyncClient(
-                timeout=self.settings.fasoo_timeout_seconds,
-                follow_redirects=False,
+                **self._client_kwargs(self.settings.fasoo_timeout_seconds)
             ) as client:
-                if input_type == "ORIGINAL_FILE":
-                    # 바이너리 원본은 Multipart를, 파생 텍스트 형식은 아래의 JSON을 사용한다.
-                    with input_path.open("rb") as source:
-                        response = await client.post(
-                            url,
-                            headers=self._headers(),
-                            files={
-                                "file": (
-                                    input_path.name,
-                                    source,
-                                    "application/octet-stream",
-                                )
-                            },
-                            data={
-                                "input_type": input_type,
-                                "config": json.dumps(request_config, ensure_ascii=False),
-                            },
-                        )
-                else:
-                    content = await _read_text_input(input_path, input_type)
-                    response = await client.post(
-                        url,
-                        headers=self._headers(),
-                        json=build_fasoo_request(content, input_type, request_config),
-                    )
+                response = await client.post(
+                    url,
+                    headers=self._headers(),
+                    json=request_payload,
+                )
             response.raise_for_status()
-            payload = response.json()
         except httpx.TimeoutException as exc:
             raise AppError(
                 "FASOO_TIMEOUT",
                 f"Fasoo exceeded {self.settings.fasoo_timeout_seconds} seconds.",
             ) from exc
         except httpx.HTTPStatusError as exc:
-            # 응답 본문에 문서 내용이 있을 수 있으므로 오류 메시지에 복사하지 않는다.
             raise AppError(
                 "FASOO_EXECUTION_FAILED",
                 f"Fasoo returned status {exc.response.status_code}.",
             ) from exc
-        except (httpx.HTTPError, ValueError) as exc:
+        except httpx.HTTPError as exc:
             raise AppError(
                 "FASOO_EXECUTION_FAILED",
                 f"Fasoo request failed: {type(exc).__name__}.",
             ) from exc
 
-        result = parse_fasoo_response(payload)
+        await _wait_for_artifacts(
+            (result_artifact, masked_artifact),
+            self.settings.fasoo_artifact_wait_seconds,
+        )
+        try:
+            result_text = await asyncio.to_thread(
+                result_artifact.read_text,
+                encoding="utf-8",
+            )
+            result_payload = await asyncio.to_thread(json.loads, result_text)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise AppError(
+                "FASOO_EXECUTION_FAILED",
+                "Fasoo result artifact is not valid JSON.",
+            ) from exc
+
+        result = await asyncio.to_thread(
+            parse_fasoo_result,
+            result_payload,
+            masked_artifact,
+            http_payload=_optional_response_payload(response),
+        )
         result.metrics = {
             **result.metrics,
             "http_status": response.status_code,
             "latency_ms": int((monotonic() - started) * 1000),
         }
         return result
-
-
-async def _read_text_input(input_path: Path, input_type: str) -> str:
-    content = await asyncio.to_thread(
-        input_path.read_text,
-        encoding="utf-8",
-        errors="ignore",
-    )
-    if input_type != "CANONICAL_JSON":
-        return content
-    try:
-        payload = json.loads(content)
-    except json.JSONDecodeError as exc:
-        raise AppError(
-            "FASOO_EXECUTION_FAILED",
-            "Canonical JSON input is invalid.",
-        ) from exc
-    return str(payload.get("full_text", "")) if isinstance(payload, dict) else ""

@@ -184,9 +184,9 @@ async def execute_deidentification(
                     output_dir=await storage.create_run_directory(run.id),
                     config={},
                 ),
-                timeout=settings.fasoo_timeout_seconds + 1,
+                timeout=(settings.fasoo_timeout_seconds + settings.fasoo_artifact_wait_seconds + 1),
             )
-            result_path = await storage.save_deidentification_result(
+            result_paths = await storage.save_deidentification_result(
                 run.id,
                 execution_result,
             )
@@ -204,7 +204,8 @@ async def execute_deidentification(
                 session.add(stored_result)
             stored_result.provider = execution_result.provider
             stored_result.input_type = settings.fasoo_input_type
-            stored_result.result_path = result_path
+            stored_result.result_path = result_paths["result_path"]
+            stored_result.masked_file_path = result_paths["masked_file_path"]
             stored_result.detected_entity_count = execution_result.detected_entity_count
             stored_result.masked_entity_count = execution_result.masked_entity_count
             stored_result.metrics = metrics
@@ -247,6 +248,7 @@ async def execute_deidentification(
                 )
                 session.add(stored_result)
             stored_result.result_path = None
+            stored_result.masked_file_path = None
             stored_result.metrics = {"error_code": error_code}
             stored_result.error_message = error_message[:2000]
             run.deidentification_status = DeidentificationStatus.FAILED
