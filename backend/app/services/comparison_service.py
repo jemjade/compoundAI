@@ -25,7 +25,7 @@ from app.schemas.result import (
     TextDiffResponse,
 )
 from app.services.storage_service import StorageService
-from app.utils.text_diff import compare_text
+from app.utils.text_diff import compare_text_async
 
 
 def extract_tables(canonical: Any) -> list[dict[str, Any]]:
@@ -219,7 +219,7 @@ class ComparisonService:
             if result is None:
                 raise AppError("RUN_RESULT_NOT_FOUND", "Run result is not available.", 409)
             texts.append(await self.storage.read_text(result.text_path) or "")
-        diff = compare_text(texts[0], texts[1], normalize_whitespace)
+        diff = await compare_text_async(texts[0], texts[1], normalize_whitespace)
         return TextDiffResponse(
             base_run_id=base_run_id,
             target_run_id=target_run_id,
