@@ -16,7 +16,18 @@ from app.adapters.parsers.base import ParserExecutionResult
 from app.core.exceptions import AppError
 from app.schemas.canonical_document import CanonicalDocument
 
-ALLOWED_EXTENSIONS = {"pdf", "docx", "pptx", "xlsx", "txt", "md"}
+ALLOWED_EXTENSIONS = {
+    "pdf",
+    "docx",
+    "pptx",
+    "xlsx",
+    "txt",
+    "md",
+    "png",
+    "jpg",
+    "jpeg",
+    "webp",
+}
 MIME_BY_EXTENSION = {
     "pdf": {"application/pdf"},
     "docx": {
@@ -33,6 +44,10 @@ MIME_BY_EXTENSION = {
     },
     "txt": {"text/plain"},
     "md": {"text/markdown", "text/plain"},
+    "png": {"image/png"},
+    "jpg": {"image/jpeg"},
+    "jpeg": {"image/jpeg"},
+    "webp": {"image/webp"},
 }
 CHUNK_SIZE = 1024 * 1024
 
@@ -87,6 +102,12 @@ class StorageService:
                         )
                     digest.update(chunk)
                     await asyncio.to_thread(output.write, chunk)
+            if size == 0:
+                raise AppError(
+                    "INVALID_INPUT_FILE",
+                    "The uploaded file is empty.",
+                    status_code=422,
+                )
         except Exception:
             if target.exists():
                 await asyncio.to_thread(target.unlink)

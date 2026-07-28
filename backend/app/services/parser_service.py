@@ -22,6 +22,7 @@ from app.utils.config_validation import validate_config_schema, validate_parser_
 
 ADAPTER_EXECUTION_TYPES = {
     "mock_parser": ExecutionType.BUILTIN,
+    "pp_structure_v3": ExecutionType.BUILTIN,
     "synap_http": ExecutionType.HTTP,
     "generic_http": ExecutionType.HTTP,
     "docling_command": ExecutionType.COMMAND,

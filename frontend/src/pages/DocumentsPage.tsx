@@ -43,7 +43,7 @@ export function DocumentsPage() {
           hidden
           ref={inputRef}
           type="file"
-          accept=".pdf,.docx,.pptx,.xlsx,.txt,.md"
+          accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.png,.jpg,.jpeg,.webp"
           onChange={choose}
         />
       </header>
@@ -77,7 +77,7 @@ export function DocumentsPage() {
         ) : (
           <EmptyState
             title="비교할 문서를 올려주세요"
-            description="PDF, Office, TXT, Markdown · 최대 크기는 Backend 환경변수로 제어됩니다."
+            description="PDF, 이미지, Office, TXT, Markdown · 최대 크기는 Backend 환경변수로 제어됩니다."
             action={
               <button className="button primary" onClick={() => inputRef.current?.click()}>
                 문서 선택

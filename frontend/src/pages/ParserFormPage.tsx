@@ -6,7 +6,7 @@ import { ApiError, api } from "../lib/api";
 import type { Parser, ParserPreset } from "../types";
 
 const ADAPTERS = {
-  BUILTIN: ["mock_parser"],
+  BUILTIN: ["mock_parser", "pp_structure_v3"],
   HTTP: ["synap_http", "generic_http"],
   COMMAND: ["docling_command", "generic_command"],
 } as const;

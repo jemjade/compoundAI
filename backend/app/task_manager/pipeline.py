@@ -1,6 +1,7 @@
 """영속적인 Parser 및 비식별화 상태 전이 Pipeline."""
 
 import asyncio
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
@@ -23,6 +24,8 @@ from app.db.models.parser import ParserConnector
 from app.db.models.result import DeidentificationResult, RunResult
 from app.services.storage_service import StorageService
 
+logger = logging.getLogger(__name__)
+
 
 async def execute_run(
     run_id: UUID,
@@ -37,6 +40,7 @@ async def execute_run(
     started = monotonic()
     work_dir = None
     should_deidentify = False
+    parser_adapter_key: str | None = None
     try:
         async with session_factory() as session:
             run = await session.get(ExperimentRun, run_id)
@@ -48,6 +52,14 @@ async def execute_run(
             run.error_message = None
             # Polling Client가 상태 전이를 볼 수 있도록 외부 작업 전에 RUNNING을 Commit한다.
             await session.commit()
+            logger.info(
+                "parser_run_started",
+                extra={
+                    "task_id": str(run.id),
+                    "document_id": str(run.document_id),
+                    "parser_name": run.parser_snapshot.get("name"),
+                },
+            )
 
             connector = await session.get(ParserConnector, run.parser_connector_id)
             document = await session.get(Document, run.document_id)
@@ -58,6 +70,7 @@ async def execute_run(
             if not connector.is_active:
                 raise AppError("PARSER_DISABLED", "Parser connector is disabled.")
 
+            parser_adapter_key = connector.adapter_key
             adapter = get_parser_adapter(connector)
             input_path = storage.resolve(document.storage_path)
             work_dir = await storage.prepare_run_work_directory(run_id)
@@ -78,7 +91,19 @@ async def execute_run(
                     "PARSER_NORMALIZATION_FAILED",
                     f"Parser normalization failed: {type(exc).__name__}.",
                 ) from exc
-            paths = await storage.save_parser_results(run.id, execution_result, canonical)
+            try:
+                paths = await storage.save_parser_results(
+                    run.id,
+                    execution_result,
+                    canonical,
+                )
+            except AppError:
+                raise
+            except Exception as exc:
+                raise AppError(
+                    "RESULT_STORAGE_FAILED",
+                    "Parser results could not be stored.",
+                ) from exc
             latency_ms = int((monotonic() - started) * 1000)
             blocks = [block for page in canonical.pages for block in page.blocks]
             result = RunResult(
@@ -96,9 +121,24 @@ async def execute_run(
             run.parse_status = ParseStatus.SUCCEEDED
             run.latency_ms = latency_ms
             run.completed_at = datetime.now(UTC)
+            result_size_bytes = sum(storage.resolve(path).stat().st_size for path in paths.values())
             should_deidentify = run.deidentification_status == DeidentificationStatus.PENDING
             # 이 Commit이 Parsing과 파수 작업 사이의 영속성 경계다.
             await session.commit()
+            logger.info(
+                "parser_run_succeeded",
+                extra={
+                    "task_id": str(run.id),
+                    "document_id": str(run.document_id),
+                    "parser_name": connector.name,
+                    "device": execution_result.metrics.get("device"),
+                    "latency_ms": latency_ms,
+                    "page_count": len(canonical.pages),
+                    "result_size_bytes": result_size_bytes,
+                    "warning_count": execution_result.metrics.get("warning_count", 0),
+                    "status": ParseStatus.SUCCEEDED.value,
+                },
+            )
         if should_deidentify:
             await execute_deidentification(run_id, session_factory, storage)
     except asyncio.CancelledError:
@@ -109,7 +149,9 @@ async def execute_run(
         error_code = (
             exc.code
             if isinstance(exc, AppError)
-            else "PARSER_TIMEOUT"
+            else (
+                "PARSING_TIMEOUT" if parser_adapter_key == "pp_structure_v3" else "PARSER_TIMEOUT"
+            )
             if isinstance(exc, TimeoutError)
             else "PARSER_EXECUTION_FAILED"
         )
@@ -118,7 +160,21 @@ async def execute_run(
             if isinstance(exc, AppError)
             else f"Parser execution failed: {type(exc).__name__}."
         )
-        await storage.save_run_error(run_id, f"{error_code}: {error_message}")
+        logger.exception(
+            "parser_run_failed",
+            extra={
+                "task_id": str(run_id),
+                "error_code": error_code,
+                "status": ParseStatus.FAILED.value,
+            },
+        )
+        try:
+            await storage.save_run_error(run_id, f"{error_code}: {error_message}")
+        except Exception:
+            logger.exception(
+                "parser_error_artifact_storage_failed",
+                extra={"task_id": str(run_id), "error_code": error_code},
+            )
         async with session_factory() as session:
             run = await session.get(ExperimentRun, run_id)
             if run is not None:
@@ -297,5 +353,7 @@ async def _mark_interrupted(
                 DeidentificationStatus.RUNNING,
             }:
                 run.deidentification_status = DeidentificationStatus.INTERRUPTED
+            run.error_code = "TASK_CANCELLED"
+            run.error_message = "Task was cancelled before completion."
             run.completed_at = datetime.now(UTC)
             await session.commit()
