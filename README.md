@@ -1191,13 +1191,25 @@ HTTP Parser 등록 예:
   "adapter_key": "synap_http",
   "base_url": "http://synap.internal",
   "default_config": {
-    "http_endpoint": "/parse",
-    "health_endpoint": "/health"
+    "use_image_ocr": false,
+    "poll_interval_seconds": 0.5
   },
   "supported_formats": ["pdf", "docx", "pptx"],
   "timeout_seconds": 300
 }
 ```
+
+`synap_http` Adapter는 DocuAnalyzer REST API의 실제 비동기 계약을 사용합니다.
+
+```text
+POST /da
+→ POST /filestatus/{fid} Polling
+→ POST /result/{fid} (페이지별 JSON)
+→ POST /delete/{fid}
+```
+
+`SYNAP_API_KEY`는 명세에 따라 Bearer Header가 아니라 각 요청의 `api_key` 필드로
+전송합니다. `GET /health-check`는 API Key 없이 엔진 상태를 확인합니다.
 
 Docling Command 등록 예:
 
