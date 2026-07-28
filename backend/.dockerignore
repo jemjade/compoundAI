@@ -1,0 +1,8 @@
+# Backend Image에서 로컬 환경·Cache·테스트·실행 데이터를 제외한다.
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+tests
+data
+*.pyc

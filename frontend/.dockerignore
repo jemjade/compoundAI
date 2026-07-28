@@ -1,0 +1,5 @@
+# Frontend Image Context에서 로컬 의존성과 Build 결과를 제외한다.
+node_modules
+dist
+.DS_Store
+npm-debug.log*

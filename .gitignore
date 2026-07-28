@@ -1,0 +1,14 @@
+# 로컬 OS·환경·의존성·Build·실행 산출물을 제외한다.
+.DS_Store
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+backend/.coverage
+backend/htmlcov/
+backend/data/
+frontend/node_modules/
+frontend/dist/
+postgres_data/

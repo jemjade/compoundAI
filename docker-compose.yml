@@ -1,0 +1,55 @@
+# PostgreSQL과 Parser 산출물 영속 Volume을 포함한 로컬 ParseLab Stack.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: parselab
+      POSTGRES_USER: parselab
+      POSTGRES_PASSWORD: parselab
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parselab -d parselab"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://parselab:parselab@postgres:5432/parselab
+      JWT_SECRET: local-docker-secret-change-me-please
+      DATA_ROOT: /app/data
+      MAX_CONCURRENT_RUNS: 2
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      COMMAND_ALLOWED_EXECUTABLES: ${COMMAND_ALLOWED_EXECUTABLES:-docling,uv,docker}
+      SYNAP_API_KEY: ${SYNAP_API_KEY:-}
+      FASOO_ENABLED: ${FASOO_ENABLED:-false}
+      FASOO_BASE_URL: ${FASOO_BASE_URL:-}
+      FASOO_API_KEY: ${FASOO_API_KEY:-}
+      FASOO_TIMEOUT_SECONDS: ${FASOO_TIMEOUT_SECONDS:-300}
+      FASOO_INPUT_TYPE: ${FASOO_INPUT_TYPE:-TEXT}
+      AUTO_CREATE_TABLES: "true"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - parser_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  parser_data:

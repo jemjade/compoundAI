@@ -1,0 +1,8 @@
+// Browser 및 Build 도구 설정을 참조하는 최상위 TypeScript Project 설정이다.
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
