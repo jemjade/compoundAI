@@ -174,15 +174,33 @@ class StorageService:
         self,
         run_id: UUID,
         execution_result: DeidentificationExecutionResult,
-    ) -> str:
+    ) -> dict[str, str | None]:
         output_dir = await self.create_run_directory(run_id)
         result_path = output_dir / "deidentified.json"
+        masked_path: Path | None = None
+        if execution_result.masked_file_path is not None:
+            source = execution_result.masked_file_path.resolve()
+            if not source.is_file():
+                raise AppError(
+                    "FASOO_ARTIFACT_NOT_FOUND",
+                    "Fasoo masked file is not available for storage.",
+                )
+            masked_path = output_dir / f"masked{source.suffix.lower()}"
+            if source != masked_path.resolve():
+                await asyncio.to_thread(shutil.copy2, source, masked_path)
         await asyncio.to_thread(
             result_path.write_text,
             execution_result.model_dump_json(indent=2),
             "utf-8",
         )
-        return result_path.relative_to(self.data_root).as_posix()
+        return {
+            "result_path": result_path.relative_to(self.data_root).as_posix(),
+            "masked_file_path": (
+                masked_path.relative_to(self.data_root).as_posix()
+                if masked_path is not None
+                else None
+            ),
+        }
 
     async def save_run_error(self, run_id: UUID, message: str) -> str:
         output_dir = await self.create_run_directory(run_id)

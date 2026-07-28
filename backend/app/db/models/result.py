@@ -43,6 +43,7 @@ class DeidentificationResult(UUIDPrimaryKeyMixin, Base):
     provider: Mapped[str] = mapped_column(String(100), default="FASOO")
     input_type: Mapped[str] = mapped_column(String(30))
     result_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    masked_file_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     detected_entity_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     masked_entity_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

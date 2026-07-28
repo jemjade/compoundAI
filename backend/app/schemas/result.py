@@ -24,6 +24,7 @@ class DeidentificationSummary(BaseModel):
     input_type: str
     detected_entity_count: int | None = None
     masked_entity_count: int | None = None
+    masked_file_available: bool = False
     latency_ms: int | None = None
     error_message: str | None = None
 
