@@ -34,8 +34,11 @@ export async function api<T>(
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     throw new ApiError(
-      payload?.error?.message ?? "요청을 처리하지 못했습니다.",
-      payload?.error?.code,
+      payload?.error?.message ??
+        payload?.detail?.[0]?.msg ??
+        (typeof payload?.detail === "string" ? payload.detail : null) ??
+        "요청을 처리하지 못했습니다.",
+      payload?.error?.code ?? "VALIDATION_ERROR",
       response.status,
     );
   }
@@ -70,6 +73,22 @@ export async function downloadComparisonCsv(experimentId: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = `parselab-comparison-${experimentId}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadDocument(documentId: string, fallbackName: string) {
+  const response = await fetch(`${API_URL}/documents/${documentId}/download`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!response.ok) throw new ApiError("원본 문서를 내려받지 못했습니다.");
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const name = disposition.match(/filename="?([^"]+)"?/)?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
   anchor.click();
   URL.revokeObjectURL(url);
 }
