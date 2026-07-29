@@ -4,7 +4,12 @@ FROM python:3.12-slim
 WORKDIR /app
 RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+ARG INSTALL_PADDLEOCR=false
+RUN if [ "$INSTALL_PADDLEOCR" = "true" ]; then \
+      uv sync --frozen --no-dev --no-install-project --extra paddleocr-cpu; \
+    else \
+      uv sync --frozen --no-dev --no-install-project; \
+    fi
 ENV PATH="/app/.venv/bin:$PATH"
 COPY alembic.ini ./
 COPY migrations ./migrations

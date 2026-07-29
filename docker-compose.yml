@@ -17,7 +17,10 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        INSTALL_PADDLEOCR: ${INSTALL_PADDLEOCR:-false}
     environment:
       DATABASE_URL: postgresql+asyncpg://parselab:parselab@postgres:5432/parselab
       JWT_SECRET: local-docker-secret-change-me-please
@@ -26,6 +29,17 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       COMMAND_ALLOWED_EXECUTABLES: ${COMMAND_ALLOWED_EXECUTABLES:-docling,uv,docker}
       SYNAP_API_KEY: ${SYNAP_API_KEY:-}
+      PADDLEOCR_ENABLED: ${PADDLEOCR_ENABLED:-false}
+      PADDLEOCR_DEVICE: ${PADDLEOCR_DEVICE:-cpu}
+      PADDLEOCR_MAX_CONCURRENCY: ${PADDLEOCR_MAX_CONCURRENCY:-1}
+      PADDLEOCR_MODEL_CACHE_DIR: ${PADDLEOCR_MODEL_CACHE_DIR:-/app/models/paddleocr}
+      PADDLEOCR_USE_DOC_ORIENTATION: ${PADDLEOCR_USE_DOC_ORIENTATION:-true}
+      PADDLEOCR_USE_DOC_UNWARPING: ${PADDLEOCR_USE_DOC_UNWARPING:-true}
+      PADDLEOCR_USE_TEXTLINE_ORIENTATION: ${PADDLEOCR_USE_TEXTLINE_ORIENTATION:-true}
+      PADDLEOCR_USE_TABLE_RECOGNITION: ${PADDLEOCR_USE_TABLE_RECOGNITION:-true}
+      PADDLEOCR_USE_FORMULA_RECOGNITION: ${PADDLEOCR_USE_FORMULA_RECOGNITION:-false}
+      PADDLEOCR_USE_CHART_RECOGNITION: ${PADDLEOCR_USE_CHART_RECOGNITION:-false}
+      PADDLEOCR_USE_SEAL_RECOGNITION: ${PADDLEOCR_USE_SEAL_RECOGNITION:-false}
       FASOO_ENABLED: ${FASOO_ENABLED:-false}
       FASOO_BASE_URL: ${FASOO_BASE_URL:-}
       FASOO_API_KEY: ${FASOO_API_KEY:-}
@@ -50,6 +64,7 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - parser_data:/app/data
+      - paddleocr_models:/app/models/paddleocr
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,3 +82,4 @@ services:
 volumes:
   postgres_data:
   parser_data:
+  paddleocr_models:

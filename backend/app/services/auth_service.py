@@ -2,6 +2,11 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.parsers.paddle_structure import (
+    PADDLE_CONFIG_SCHEMA,
+    paddle_default_options,
+)
+from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.models.parser import ExecutionType
@@ -39,7 +44,8 @@ class AuthService:
 
     async def _seed_mock_parsers(self, user: User) -> None:
         parsers = ParserRepository(self.session)
-        for definition in (
+        mock_formats = ["pdf", "docx", "pptx", "xlsx", "txt", "md"]
+        definitions = [
             ParserCreate(
                 name="Mock Standard",
                 slug="mock-standard",
@@ -51,7 +57,7 @@ class AuthService:
                 adapter_key="mock_parser",
                 default_config={"mode": "standard", "delay_seconds": 0.2},
                 capabilities=["TEXT", "MARKDOWN", "LAYOUT"],
-                supported_formats=["pdf", "docx", "pptx", "xlsx", "txt", "md"],
+                supported_formats=mock_formats,
             ),
             ParserCreate(
                 name="Mock Line Reader",
@@ -64,9 +70,29 @@ class AuthService:
                 adapter_key="mock_parser",
                 default_config={"mode": "line-numbered", "delay_seconds": 0.35},
                 capabilities=["TEXT", "MARKDOWN", "LAYOUT"],
-                supported_formats=["pdf", "docx", "pptx", "xlsx", "txt", "md"],
+                supported_formats=mock_formats,
             ),
-        ):
+        ]
+        settings = get_settings()
+        if settings.paddleocr_enabled:
+            definitions.append(
+                ParserCreate(
+                    name="PaddleOCR PP-StructureV3",
+                    slug="pp-structure-v3",
+                    description="PaddleOCR 3.x 기반 로컬 문서 구조 분석 Parser",
+                    provider="PaddlePaddle",
+                    model_name="PP-StructureV3",
+                    model_version="3.7.0",
+                    execution_type=ExecutionType.BUILTIN,
+                    adapter_key="pp_structure_v3",
+                    default_config=paddle_default_options(settings),
+                    config_schema=PADDLE_CONFIG_SCHEMA,
+                    capabilities=["TEXT", "MARKDOWN", "TABLE", "LAYOUT", "OCR"],
+                    supported_formats=["pdf", "png", "jpg", "jpeg", "webp"],
+                    timeout_seconds=1800,
+                )
+            )
+        for definition in definitions:
             await parsers.create(definition, user.id)
 
     async def login(self, data: LoginRequest) -> str:

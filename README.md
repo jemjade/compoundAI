@@ -987,6 +987,115 @@ Header를 전송하며, API Key와 문서 원문은 애플리케이션 로그에
 `FASOO_RULE_JSON`에 `rule` 객체 전체를 JSON 한 줄로 설정하면 개별 Pattern/Label
 환경변수보다 우선 적용됩니다.
 
+### PaddleOCR PP-StructureV3
+
+PP-StructureV3는 기본 이미지에 포함되지 않는 선택 기능입니다. CPU 환경의 로컬
+Backend에는 다음 extra로 설치합니다.
+
+```bash
+cd backend
+uv sync --extra paddleocr-cpu
+```
+
+Docker에서는 `.env`의 두 값을 활성화한 뒤 Backend 이미지를 다시 빌드합니다.
+
+```env
+INSTALL_PADDLEOCR=true
+PADDLEOCR_ENABLED=true
+```
+
+```bash
+docker compose build backend
+docker compose up
+```
+
+기본 설정은 CPU, 동시 추론 1개이며 문서 방향 분류, 문서 왜곡 보정, 텍스트 줄 방향
+분류와 표 인식을 사용합니다.
+
+```env
+PADDLEOCR_DEVICE=cpu
+PADDLEOCR_MAX_CONCURRENCY=1
+PADDLEOCR_MODEL_CACHE_DIR=/app/models/paddleocr
+PADDLEOCR_USE_DOC_ORIENTATION=true
+PADDLEOCR_USE_DOC_UNWARPING=true
+PADDLEOCR_USE_TEXTLINE_ORIENTATION=true
+PADDLEOCR_USE_TABLE_RECOGNITION=true
+PADDLEOCR_USE_FORMULA_RECOGNITION=false
+PADDLEOCR_USE_CHART_RECOGNITION=false
+PADDLEOCR_USE_SEAL_RECOGNITION=false
+```
+
+`PADDLEOCR_DEVICE`는 `cpu`, `gpu`, `gpu:0` 형식을 허용합니다. GPU를 사용하려면
+배포 환경에 맞는 PaddlePaddle GPU 패키지를 별도로 선택해야 하며 CPU 패키지와
+동시에 설치하면 안 됩니다. 이 저장소가 제공하는 `paddleocr-cpu` extra와 기본
+Docker 설정은 CPU 전용입니다.
+
+모델은 첫 작업 때 내려받고 프로세스 안에서 한 번만 초기화합니다.
+`PADDLEOCR_MODEL_CACHE_DIR`는 Docker의 `paddleocr_models` Volume에 연결되어 재시작
+후에도 다운로드를 재사용합니다. Uvicorn Worker를 여러 개 실행하면 Worker마다
+모델과 동시성 제한이 각각 생기므로 필요한 메모리도 Worker 수만큼 증가합니다.
+
+`PADDLEOCR_ENABLED=true`인 상태에서 최초 관리자 계정을 만들면
+`pp_structure_v3` 내장 Connector가 함께 등록됩니다. 이미 DB가 생성된 환경은
+관리자 Token으로 한 번 등록합니다.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/parsers \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "PaddleOCR PP-StructureV3",
+    "slug": "pp-structure-v3",
+    "provider": "PaddlePaddle",
+    "model_name": "PP-StructureV3",
+    "model_version": "3.7.0",
+    "execution_type": "BUILTIN",
+    "adapter_key": "pp_structure_v3",
+    "default_config": {
+      "use_doc_orientation_classify": true,
+      "use_doc_unwarping": true,
+      "use_textline_orientation": true,
+      "use_table_recognition": true,
+      "use_formula_recognition": false,
+      "use_chart_recognition": false,
+      "use_seal_recognition": false
+    },
+    "config_schema": {
+      "type": "object",
+      "properties": {
+        "use_doc_orientation_classify": {"type": "boolean"},
+        "use_doc_unwarping": {"type": "boolean"},
+        "use_textline_orientation": {"type": "boolean"},
+        "use_table_recognition": {"type": "boolean"},
+        "use_formula_recognition": {"type": "boolean"},
+        "use_chart_recognition": {"type": "boolean"},
+        "use_seal_recognition": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "capabilities": ["TEXT", "MARKDOWN", "TABLE", "LAYOUT", "OCR"],
+    "supported_formats": ["pdf", "png", "jpg", "jpeg", "webp"],
+    "timeout_seconds": 1800
+  }'
+```
+
+PDF 또는 이미지 문서를 업로드한 후 일반 Experiment 생성 API에서 이 Connector ID와
+선택적인 `config_override`를 지정합니다. API는 기존과 같이 `202 Accepted`와 Run
+ID를 즉시 반환하며, 실제 추론은 In-Process Task Manager에서 실행됩니다. 결과는
+기존 정책에 따라 `raw.json`, `canonical.json`, `output.md`, `output.txt`로
+저장됩니다.
+
+환경변수에서 꺼 둔 하위 모델을 작업 옵션으로 새로 켤 수는 없습니다. 예를 들어
+formula 인식을 사용하려면 `PADDLEOCR_USE_FORMULA_RECOGNITION=true`로 변경하고
+Backend를 재시작해야 합니다. 첫 모델 다운로드에는 외부 네트워크가 필요하며 다운로드,
+초기화, 메모리 부족, 파싱, 직렬화와 저장 실패는 각각 Run의 표준 오류 코드로
+기록됩니다. GPU 오류 시 CPU로 자동 전환하거나 무한 재시도하지 않습니다.
+
+작업 취소는 Run을 `INTERRUPTED`와 `TASK_CANCELLED`로 기록합니다. 다만 native
+Paddle 추론이 이미 Worker Thread 안에서 실행 중이면 해당 호출 자체는 강제 종료할
+수 없고 반환 후 정리됩니다. 페이지별 진척도를 신뢰성 있게 받을 수 없어 현재
+거짓 progress 값은 제공하지 않습니다.
+
 ## 로컬 개발
 
 PostgreSQL만 Docker로 시작합니다.
@@ -1205,6 +1314,10 @@ Docling Command 등록 예:
 cd backend
 uv run ruff check .
 uv run pytest -q
+
+# 선택 설치된 실제 PP-StructureV3로 작은 이미지 Smoke Test
+RUN_PADDLEOCR_INTEGRATION_TESTS=1 \
+  uv run --extra paddleocr-cpu pytest -q -m paddle_integration
 
 cd ../frontend
 npm run build

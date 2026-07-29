@@ -314,6 +314,8 @@ class ExperimentService:
         self.task_manager.cancel(run.id)
         if parse_active:
             run.parse_status = ParseStatus.INTERRUPTED
+            run.error_code = "TASK_CANCELLED"
+            run.error_message = "Task was cancelled before completion."
         if deidentification_active:
             run.deidentification_status = DeidentificationStatus.INTERRUPTED
         await self.session.commit()

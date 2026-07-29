@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -25,6 +25,17 @@ class Settings(BaseSettings):
         "docker",
     ]
     synap_api_key: str | None = None
+    paddleocr_enabled: bool = False
+    paddleocr_device: str = "cpu"
+    paddleocr_max_concurrency: int = Field(default=1, ge=1, le=8)
+    paddleocr_model_cache_dir: Path | None = None
+    paddleocr_use_doc_orientation: bool = True
+    paddleocr_use_doc_unwarping: bool = True
+    paddleocr_use_textline_orientation: bool = True
+    paddleocr_use_table_recognition: bool = True
+    paddleocr_use_formula_recognition: bool = False
+    paddleocr_use_chart_recognition: bool = False
+    paddleocr_use_seal_recognition: bool = False
     fasoo_enabled: bool = False
     fasoo_base_url: str | None = None
     fasoo_api_key: str | None = None
@@ -82,6 +93,24 @@ class Settings(BaseSettings):
     @classmethod
     def blank_ca_bundle_is_none(cls, value: object) -> object:
         return None if value == "" else value
+
+    @field_validator("paddleocr_model_cache_dir", mode="before")
+    @classmethod
+    def blank_paddleocr_cache_dir_is_none(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("paddleocr_device")
+    @classmethod
+    def validate_paddleocr_device(cls, value: str) -> str:
+        if value == "cpu":
+            return value
+        if value == "gpu":
+            return value
+        if value.startswith("gpu:"):
+            device_ids = value.removeprefix("gpu:").split(",")
+            if device_ids and all(item.isdigit() for item in device_ids):
+                return value
+        raise ValueError("PADDLEOCR_DEVICE must be cpu, gpu, or gpu:<device-id>.")
 
     @property
     def max_upload_size_bytes(self) -> int:

@@ -31,6 +31,34 @@ async def test_storage_rejects_mime_extension_mismatch(tmp_path: Path) -> None:
         await storage.save_document(uuid4(), upload)
 
 
+async def test_storage_accepts_png_upload(tmp_path: Path) -> None:
+    storage = StorageService(tmp_path, 1024)
+    upload = UploadFile(
+        BytesIO(b"\x89PNG\r\n\x1a\nsynthetic"),
+        filename="scan.png",
+        headers=Headers({"content-type": "image/png"}),
+    )
+
+    stored = await storage.save_document(uuid4(), upload)
+
+    assert stored["extension"] == "png"
+    assert storage.resolve(stored["storage_path"]).read_bytes().startswith(b"\x89PNG")
+
+
+async def test_storage_rejects_empty_upload(tmp_path: Path) -> None:
+    storage = StorageService(tmp_path, 1024)
+    upload = UploadFile(
+        BytesIO(b""),
+        filename="empty.png",
+        headers=Headers({"content-type": "image/png"}),
+    )
+
+    with pytest.raises(AppError) as caught:
+        await storage.save_document(uuid4(), upload)
+
+    assert caught.value.code == "INVALID_INPUT_FILE"
+
+
 async def test_storage_copies_masked_file_as_run_artifact(tmp_path: Path) -> None:
     storage = StorageService(tmp_path / "data", 1024)
     masked_source = tmp_path / "nas" / "masked.xlsx"
