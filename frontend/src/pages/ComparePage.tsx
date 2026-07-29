@@ -2,8 +2,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
+import { EmptyState } from "../components/EmptyState";
+import { Icon } from "../components/Icon";
+import { JsonViewer } from "../components/JsonViewer";
+import { MarkdownViewer } from "../components/MarkdownViewer";
+import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
-import { api, downloadArtifact, downloadComparisonCsv } from "../lib/api";
+import {
+  api,
+  downloadArtifact,
+  downloadComparisonCsv,
+  downloadDocument,
+} from "../lib/api";
 import { formatBytes, formatDuration } from "../lib/format";
 import type {
   CanonicalTable,
@@ -13,16 +23,24 @@ import type {
   TextDiff,
 } from "../types";
 
-type ViewMode = "text" | "markdown" | "canonical" | "tables" | "deidentified" | "diff";
+type ViewMode =
+  | "rendered"
+  | "text"
+  | "markdown"
+  | "canonical"
+  | "tables"
+  | "deidentified"
+  | "diff";
 type EvaluationPayload = Omit<ManualEvaluation, "id" | "run_id" | "evaluator_id">;
 
 const modes: Array<{ value: ViewMode; label: string }> = [
+  { value: "rendered", label: "Rendered" },
   { value: "text", label: "Text" },
-  { value: "markdown", label: "Markdown" },
-  { value: "canonical", label: "JSON" },
+  { value: "markdown", label: "Markdown source" },
+  { value: "canonical", label: "Raw JSON" },
   { value: "tables", label: "Tables" },
   { value: "deidentified", label: "Deidentified" },
-  { value: "diff", label: "Text Diff" },
+  { value: "diff", label: "Diff" },
 ];
 
 const emptyEvaluation: EvaluationPayload = {
@@ -37,8 +55,9 @@ const emptyEvaluation: EvaluationPayload = {
 export function ComparePage() {
   const { id = "" } = useParams();
   const queryClient = useQueryClient();
-  const [mode, setMode] = useState<ViewMode>("text");
+  const [mode, setMode] = useState<ViewMode>("rendered");
   const [wrap, setWrap] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
   const [normalizeWhitespace, setNormalizeWhitespace] = useState(true);
   const [baseRunId, setBaseRunId] = useState("");
   const [targetRunId, setTargetRunId] = useState("");
@@ -105,138 +124,215 @@ export function ComparePage() {
     mutationFn: () => downloadComparisonCsv(id),
   });
 
-  if (!comparison.data) return <div className="loading-panel">비교 결과를 준비하는 중…</div>;
+  useEffect(() => {
+    if (!fullscreen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFullscreen(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [fullscreen]);
+
+  if (comparison.isError) {
+    return (
+      <div className="error-state" role="alert">
+        <Icon name="circleAlert" size={24} />
+        <h2>비교 결과를 불러오지 못했습니다</h2>
+        <p>{comparison.error.message}</p>
+        <button className="button ghost" type="button" onClick={() => comparison.refetch()}>
+          <Icon name="refresh" size={14} /> 다시 시도
+        </button>
+      </div>
+    );
+  }
+  if (!comparison.data) {
+    return (
+      <div className="comparison-skeleton" aria-label="비교 결과를 준비하는 중">
+        <span /><span /><span />
+      </div>
+    );
+  }
 
   return (
-    <div className="compare-page">
-      <header className="page-header compare-header">
-        <div>
+    <div className={`compare-page ${fullscreen ? "is-fullscreen" : ""}`}>
+      <PageHeader
+        eyebrow="COMPARISON WORKSPACE"
+        title={comparison.data.document.filename}
+        description={`${runs.length}개 Parser 결과 · 유사도는 정확도가 아닌 상대 일치도입니다.`}
+        actions={
+          <>
+            <button
+              type="button"
+              className="button ghost"
+              disabled={exportCsv.isPending}
+              onClick={() => exportCsv.mutate()}
+            >
+              <Icon name="download" size={14} />
+              {exportCsv.isPending ? "내보내는 중…" : "CSV 내보내기"}
+            </button>
+            <button
+              type="button"
+              className="button ghost"
+              onClick={() => setFullscreen((current) => !current)}
+              aria-pressed={fullscreen}
+            >
+              <Icon name={fullscreen ? "x" : "maximize"} size={14} />
+              {fullscreen ? "집중 모드 닫기" : "집중 모드"}
+            </button>
+          </>
+        }
+      >
+        {!fullscreen && (
           <Link to={`/experiments/${id}`} className="back-link">
-            ← Experiment
+            <Icon name="arrowLeft" size={14} /> Task detail
           </Link>
-          <span className="eyebrow">SIDE-BY-SIDE · PHASE 4</span>
-          <h1>{comparison.data.document.filename}</h1>
-          <p>{runs.length}개 Parser 결과 비교 · 유사도는 정확도가 아닌 상대 일치도입니다.</p>
-        </div>
-        <button
-          type="button"
-          className="button ghost"
-          disabled={exportCsv.isPending}
-          onClick={() => exportCsv.mutate()}
-        >
-          ↓ 비교 결과 CSV
-        </button>
-      </header>
-      <nav className="mode-switch comparison-modes" aria-label="비교 결과 유형">
-        {modes.map((item) => (
-          <button
-            type="button"
-            key={item.value}
-            className={mode === item.value ? "active" : ""}
-            onClick={() => setMode(item.value)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
-      <div className="compare-toolbar">
-        {mode !== "diff" && mode !== "tables" && (
-          <label className="toggle-label">
-            <input type="checkbox" checked={wrap} onChange={() => setWrap(!wrap)} />
-            줄바꿈
-          </label>
         )}
-        <span>
-          {mode === "diff"
-            ? "기준과 비교 Run을 선택해 상대적인 텍스트 차이를 확인합니다."
-            : "각 Parser의 결과와 운영 지표, 수동 평가를 함께 확인합니다."}
-        </span>
+      </PageHeader>
+      <div className="comparison-toolbar">
+        <nav className="mode-switch comparison-modes" aria-label="비교 결과 유형">
+          {modes.map((item) => (
+            <button
+              type="button"
+              key={item.value}
+              className={mode === item.value ? "active" : ""}
+              onClick={() => setMode(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="comparison-options">
+          {mode !== "diff" && mode !== "tables" && mode !== "rendered" && (
+            <label className="switch-label compact-switch">
+              <input type="checkbox" checked={wrap} onChange={() => setWrap(!wrap)} />
+              <span />
+              Wrap
+            </label>
+          )}
+          <span><Icon name="activity" size={13} /> synchronized result context</span>
+        </div>
       </div>
       {exportCsv.isError && (
         <div className="error-banner">CSV 파일을 내려받지 못했습니다.</div>
       )}
-      {mode === "diff" ? (
-        <DiffView
-          runs={runs}
-          baseRunId={resolvedBaseRunId}
-          targetRunId={resolvedTargetRunId}
-          normalizeWhitespace={normalizeWhitespace}
-          result={diff.data}
-          loading={diff.isFetching}
-          onBaseChange={setBaseRunId}
-          onTargetChange={setTargetRunId}
-          onNormalizeChange={setNormalizeWhitespace}
-        />
-      ) : (
-        <section
-          className="comparison-grid"
-          style={{
-            gridTemplateColumns: `repeat(${Math.max(runs.length, 1)}, minmax(340px, 1fr))`,
-          }}
-        >
-          {runs.map((run) => (
-            <article
-              className={`comparison-column ${run.evaluation?.is_preferred ? "preferred" : ""}`}
-              key={run.run_id}
+      <div className="compare-canvas">
+        <aside className="source-panel">
+          <header>
+            <div>
+              <span className="eyebrow">SOURCE DOCUMENT</span>
+              <h2>Original</h2>
+            </div>
+            <span className="source-type">{comparison.data.document.filename.split(".").pop()?.toUpperCase()}</span>
+          </header>
+          <div className="source-preview">
+            <div className="document-sheet">
+              <span>01</span>
+              <Icon name="document" size={34} />
+              <strong>{comparison.data.document.filename}</strong>
+              <p>원본 페이지 미리보기는 현재 API가 제공하지 않습니다.</p>
+            </div>
+          </div>
+          <div className="source-footer">
+            <button
+              type="button"
+              className="button ghost wide"
+              onClick={() =>
+                downloadDocument(
+                  comparison.data.document.id,
+                  comparison.data.document.filename,
+                )
+              }
             >
-              <div className="comparison-column-head">
-                {run.evaluation?.is_preferred && (
-                  <span className="preferred-ribbon">★ Preferred</span>
-                )}
-                <div>
-                  <span className="eyebrow">{run.parser_version}</span>
-                  <h2>{run.parser_name}</h2>
-                </div>
-                <StatusBadge status={run.parse_status} />
-                <div className="metric-strip">
-                  <span>
-                    <strong>{formatDuration(run.metrics.latency_ms)}</strong>
-                    처리 시간
-                  </span>
-                  <span>
-                    <strong>{run.metrics.text_length.toLocaleString()}</strong>
-                    글자
-                  </span>
-                  <span>
-                    <strong>{run.metrics.table_count}</strong>
-                    Tables
-                  </span>
-                  <span>
-                    <strong>{formatBytes(run.metrics.result_size_bytes)}</strong>
-                    결과 크기
-                  </span>
-                  {mode === "deidentified" && (
-                    <span>
-                      <strong>{run.deidentification?.masked_entity_count ?? "—"}</strong>
-                      Masked
-                    </span>
-                  )}
-                </div>
-              </div>
-              <RunContent run={run} mode={mode} wrap={wrap} />
-              <div className="comparison-downloads">
-                <button
-                  disabled={mode === "deidentified" && !run.deidentified}
-                  onClick={() =>
-                    downloadArtifact(
-                      run.run_id,
-                      mode === "tables" ? "canonical" : mode,
-                    )
-                  }
+              <Icon name="download" size={14} /> 원본 다운로드
+            </button>
+            <p><Icon name="info" size={13} /> 결과는 동일한 원본 문서를 기준으로 정렬됩니다.</p>
+          </div>
+        </aside>
+
+        <main className="results-canvas">
+          {runs.length === 0 ? (
+            <EmptyState
+              compact
+              icon="compare"
+              title="비교 가능한 결과가 없습니다"
+              description="성공한 Parser Run이 2개 이상 준비되면 결과를 비교할 수 있습니다."
+              action={<Link className="button ghost" to={`/experiments/${id}`}>Task 상태 보기</Link>}
+            />
+          ) : mode === "diff" ? (
+            <DiffView
+              runs={runs}
+              baseRunId={resolvedBaseRunId}
+              targetRunId={resolvedTargetRunId}
+              normalizeWhitespace={normalizeWhitespace}
+              result={diff.data}
+              loading={diff.isFetching}
+              onBaseChange={setBaseRunId}
+              onTargetChange={setTargetRunId}
+              onNormalizeChange={setNormalizeWhitespace}
+            />
+          ) : (
+            <section className={`comparison-grid cols-${Math.min(runs.length, 4)}`}>
+              {runs.map((run) => (
+                <article
+                  className={`comparison-column ${run.evaluation?.is_preferred ? "preferred" : ""}`}
+                  key={run.run_id}
                 >
-                  ↓ {mode === "tables" ? "canonical" : mode}
-                </button>
-              </div>
-              <EvaluationEditor
-                key={`${run.run_id}-${run.evaluation?.id ?? "new"}-${run.evaluation?.is_preferred}`}
-                run={run}
-                saving={saveEvaluation.isPending}
-                onSave={(data) => saveEvaluation.mutate({ runId: run.run_id, data })}
-              />
-            </article>
-          ))}
-        </section>
-      )}
+                  <div className="comparison-column-head">
+                    {run.evaluation?.is_preferred && (
+                      <span className="preferred-ribbon"><Icon name="sparkle" size={12} /> Preferred result</span>
+                    )}
+                    <div className="column-identity">
+                      <span className="parser-glyph">{run.parser_name.slice(0, 1)}</span>
+                      <div>
+                        <span className="eyebrow">{run.parser_version || "DEFAULT PROFILE"}</span>
+                        <h2>{run.parser_name}</h2>
+                      </div>
+                    </div>
+                    <StatusBadge status={run.parse_status} compact />
+                    <div className="metric-strip">
+                      <span>
+                        <strong>{formatDuration(run.metrics.latency_ms)}</strong>
+                        Latency
+                      </span>
+                      <span><strong>{run.metrics.text_length.toLocaleString()}</strong>Characters</span>
+                      <span><strong>{run.metrics.table_count}</strong>Tables</span>
+                      <span><strong>{formatBytes(run.metrics.result_size_bytes)}</strong>Result size</span>
+                      {mode === "deidentified" && (
+                        <span><strong>{run.deidentification?.masked_entity_count ?? "—"}</strong>Masked</span>
+                      )}
+                    </div>
+                  </div>
+                  <RunContent run={run} mode={mode} wrap={wrap} />
+                  <div className="comparison-downloads">
+                    <button
+                      disabled={mode === "deidentified" && !run.deidentified}
+                      onClick={() =>
+                        downloadArtifact(
+                          run.run_id,
+                          mode === "rendered" || mode === "markdown"
+                            ? "markdown"
+                            : mode === "tables"
+                              ? "canonical"
+                              : mode,
+                        )
+                      }
+                    >
+                      <Icon name="download" size={13} />
+                      {mode === "rendered" ? "markdown" : mode === "tables" ? "canonical" : mode}
+                    </button>
+                  </div>
+                  <EvaluationEditor
+                    key={`${run.run_id}-${run.evaluation?.id ?? "new"}-${run.evaluation?.is_preferred}`}
+                    run={run}
+                    saving={saveEvaluation.isPending}
+                    onSave={(data) => saveEvaluation.mutate({ runId: run.run_id, data })}
+                  />
+                </article>
+              ))}
+            </section>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
@@ -251,12 +347,10 @@ function RunContent({
   wrap: boolean;
 }) {
   if (mode === "tables") return <TablesView tables={run.tables} />;
+  if (mode === "rendered") return <MarkdownViewer value={run.markdown} />;
+  if (mode === "canonical") return <JsonViewer value={run.canonical} />;
   const content =
-    mode === "canonical"
-      ? run.canonical
-        ? JSON.stringify(run.canonical, null, 2)
-        : null
-      : run[mode];
+    mode === "deidentified" ? run.deidentified : run[mode];
   return <pre className={wrap ? "wrap" : ""}>{content || "결과가 비어 있습니다."}</pre>;
 }
 
