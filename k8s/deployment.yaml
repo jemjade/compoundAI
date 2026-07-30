@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paserlab
+  namespace: playground
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: paserlab
+  template:
+    metadata:
+      labels:
+        app: paserlab
+    spec:
+      securityContext:
+        runAsUser: 2001
+        runAsGroup: 2000
+        fsGroup: 2000
+      initContainers:
+        - name: migrate
+          image: registry.haiqv.ai/haiqv/paserlab:latest
+          imagePullPolicy: Always
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: paserlab-config
+            - secretRef:
+                name: paserlab-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      containers:
+        - name: paserlab
+          image: registry.haiqv.ai/haiqv/paserlab:latest
+          imagePullPolicy: Always
+          command: ["uvicorn"]
+          args:
+            - "app.main:app"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8000"
+            - "--root-path"
+            - "/paserlab"
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: paserlab-config
+            - secretRef:
+                name: paserlab-secret
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          volumeMounts:
+            - name: dwp-nas-volume
+              mountPath: /app/data/dwp_comp
+      volumes:
+        - name: dwp-nas-volume
+          persistentVolumeClaim:
+            claimName: dwp-nas-volume
+      terminationGracePeriodSeconds: 30

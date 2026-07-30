@@ -335,6 +335,11 @@ def _deidentification_input_path(
             "FASOO_EXECUTION_FAILED",
             f"{input_type} input file is not available for deidentification.",
         )
+    if input_type != "ORIGINAL_FILE" and path.stat().st_size == 0:
+        raise AppError(
+            "FASOO_EXECUTION_FAILED",
+            f"{input_type} parser output is empty and cannot be deidentified.",
+        )
     return path
 
 

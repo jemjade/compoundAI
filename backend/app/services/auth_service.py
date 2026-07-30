@@ -2,10 +2,6 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.parsers.paddle_structure import (
-    PADDLE_CONFIG_SCHEMA,
-    paddle_default_options,
-)
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.security import create_access_token, hash_password, verify_password
@@ -15,6 +11,7 @@ from app.repositories.parser_repository import ParserRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import LoginRequest, SignupRequest
 from app.schemas.parser import ParserCreate
+from app.services.parser_catalog import enabled_parser_definitions
 
 
 class AuthService:
@@ -73,25 +70,7 @@ class AuthService:
                 supported_formats=mock_formats,
             ),
         ]
-        settings = get_settings()
-        if settings.paddleocr_enabled:
-            definitions.append(
-                ParserCreate(
-                    name="PaddleOCR PP-StructureV3",
-                    slug="pp-structure-v3",
-                    description="PaddleOCR 3.x 기반 로컬 문서 구조 분석 Parser",
-                    provider="PaddlePaddle",
-                    model_name="PP-StructureV3",
-                    model_version="3.7.0",
-                    execution_type=ExecutionType.BUILTIN,
-                    adapter_key="pp_structure_v3",
-                    default_config=paddle_default_options(settings),
-                    config_schema=PADDLE_CONFIG_SCHEMA,
-                    capabilities=["TEXT", "MARKDOWN", "TABLE", "LAYOUT", "OCR"],
-                    supported_formats=["pdf", "png", "jpg", "jpeg", "webp"],
-                    timeout_seconds=1800,
-                )
-            )
+        definitions.extend(enabled_parser_definitions(get_settings()))
         for definition in definitions:
             await parsers.create(definition, user.id)
 

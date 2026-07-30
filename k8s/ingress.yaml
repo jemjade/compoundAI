@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: paserlab
+  namespace: playground
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "110m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - oasis-dev.agentone.kr
+      secretName: tls-agent-secret
+  rules:
+    - host: oasis-dev.agentone.kr
+      http:
+        paths:
+          - path: /paserlab(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: paserlab
+                port:
+                  number: 80

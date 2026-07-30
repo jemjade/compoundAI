@@ -19,6 +19,7 @@ from app.db.models.experiment import (
     ParseStatus,
 )
 from app.db.session import async_session_factory, engine
+from app.services.parser_catalog import seed_enabled_parser_connectors
 from app.task_manager.manager import TaskManager
 
 settings = get_settings()
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             .values(deidentification_status=DeidentificationStatus.INTERRUPTED)
         )
         await session.commit()
+        await seed_enabled_parser_connectors(session, settings)
     app.state.task_manager = TaskManager(settings.max_concurrent_runs)
     yield
     await app.state.task_manager.shutdown()

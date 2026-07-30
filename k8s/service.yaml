@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: paserlab
+  namespace: playground
+spec:
+  type: ClusterIP
+  selector:
+    app: paserlab
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http

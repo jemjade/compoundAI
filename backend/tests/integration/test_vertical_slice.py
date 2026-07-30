@@ -64,6 +64,7 @@ async def test_mock_parser_vertical_slice(tmp_path: Path, monkeypatch) -> None:
             assert [parser.slug for parser in parsers] == [
                 "mock-line-reader",
                 "mock-standard",
+                "pp-structure-v3",
             ]
             preset_service = ParserService(session)
             preset = await preset_service.create_preset(
@@ -96,6 +97,7 @@ async def test_mock_parser_vertical_slice(tmp_path: Path, monkeypatch) -> None:
                             parser_preset_id=preset.id if parser.id == parsers[0].id else None,
                         )
                         for parser in parsers
+                        if document.extension in parser.supported_formats
                     ],
                 ),
                 user.id,

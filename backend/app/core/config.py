@@ -24,6 +24,9 @@ class Settings(BaseSettings):
         "uv",
         "docker",
     ]
+    docling_base_url: str | None = None
+    docling_api_key: str | None = None
+    mineru_base_url: str | None = None
     synap_api_key: str | None = None
     paddleocr_enabled: bool = False
     paddleocr_device: str = "cpu"
@@ -97,6 +100,11 @@ class Settings(BaseSettings):
     @field_validator("paddleocr_model_cache_dir", mode="before")
     @classmethod
     def blank_paddleocr_cache_dir_is_none(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("docling_base_url", "mineru_base_url", mode="before")
+    @classmethod
+    def blank_parser_url_is_none(cls, value: object) -> object:
         return None if value == "" else value
 
     @field_validator("paddleocr_device")
