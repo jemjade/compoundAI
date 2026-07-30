@@ -4,16 +4,19 @@ import asyncio
 from io import BytesIO
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.datastructures import Headers, UploadFile
 
 from app.adapters.deidentifiers.mock import MockDeidentifierAdapter
+from app.core.config import Settings
 from app.core.exceptions import AppError
 from app.core.security import decode_access_token
 from app.db import models  # noqa: F401
 from app.db.base import Base
-from app.db.models.experiment import DeidentificationStatus, ParseStatus
+from app.db.models.experiment import DeidentificationStatus, ExperimentRun, ParseStatus
 from app.db.models.parser import ExecutionType
+from app.db.models.result import RunResult
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.parser_repository import ParserRepository
 from app.schemas.auth import LoginRequest, SignupRequest
@@ -31,6 +34,10 @@ from app.task_manager.manager import TaskManager
 
 
 async def test_mock_parser_vertical_slice(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.auth_service.get_settings",
+        lambda: Settings(_env_file=None),
+    )
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -294,6 +301,42 @@ async def test_mock_parser_vertical_slice(tmp_path: Path, monkeypatch) -> None:
                 retried_comparison.runs[0].deidentification_status
                 == DeidentificationStatus.SUCCEEDED
             )
+
+        # 성공 상태만 남고 Parser 산출물이 비어 있으면 Fasoo만 반복하지 않고
+        # Parsing부터 재실행하며 기존 RunResult를 중복 생성하지 않는다.
+        async with session_factory() as session:
+            empty_run = await session.get(ExperimentRun, failed_run.run_id)
+            parser_result = await session.scalar(
+                select(RunResult).where(RunResult.run_id == failed_run.run_id)
+            )
+            assert empty_run is not None
+            assert parser_result is not None
+            storage.resolve(parser_result.text_path).write_text("", encoding="utf-8")
+            empty_run.deidentification_status = DeidentificationStatus.FAILED
+            await session.commit()
+
+            reparsed_run = await ExperimentService(
+                session,
+                session_factory,
+                storage,
+                manager,
+            ).retry(failed_run.run_id, user.id)
+            assert reparsed_run.parse_status == ParseStatus.PENDING
+            assert reparsed_run.deidentification_status == DeidentificationStatus.PENDING
+
+        await asyncio.gather(*list(manager._tasks.values()))  # noqa: SLF001
+        async with session_factory() as session:
+            reparsed_run = await session.get(ExperimentRun, failed_run.run_id)
+            parser_results = list(
+                await session.scalars(
+                    select(RunResult).where(RunResult.run_id == failed_run.run_id)
+                )
+            )
+            assert reparsed_run is not None
+            assert reparsed_run.parse_status == ParseStatus.SUCCEEDED
+            assert reparsed_run.deidentification_status == DeidentificationStatus.SUCCEEDED
+            assert len(parser_results) == 1
+            assert storage.resolve(parser_results[0].text_path).stat().st_size > 0
     finally:
         await manager.shutdown()
         await engine.dispose()

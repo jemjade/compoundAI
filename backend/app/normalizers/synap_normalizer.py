@@ -25,6 +25,26 @@ BLOCK_TYPES = {
 }
 
 
+def _content_text(value: Any) -> str:
+    """Chat 계열의 중첩 contents Tree에서 문서 문자열만 추출한다."""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return "\n".join(
+            text for item in value if (text := _content_text(item))
+        )
+    if not isinstance(value, dict):
+        return ""
+    for key in ("full_text", "text"):
+        direct = value.get(key)
+        if isinstance(direct, str) and direct.strip():
+            return direct.strip()
+    for key in ("content", "contents", "blocks", "elements", "children"):
+        if key in value and (text := _content_text(value[key])):
+            return text
+    return ""
+
+
 def _bbox(value: Any) -> BoundingBox | None:
     if isinstance(value, list) and len(value) == 4:
         return BoundingBox(x1=value[0], y1=value[1], x2=value[2], y2=value[3])
@@ -84,7 +104,11 @@ def normalize_synap_response(
         if not isinstance(page_data, dict):
             continue
         page_number = int(page_data.get("page_number", page_data.get("page", page_index + 1)))
-        blocks_data = page_data.get("blocks", page_data.get("elements", []))
+        blocks_data = page_data.get("blocks")
+        if not isinstance(blocks_data, list):
+            blocks_data = page_data.get("elements")
+        if not isinstance(blocks_data, list):
+            blocks_data = page_data.get("contents", [])
         blocks: list[DocumentBlock] = []
         if isinstance(blocks_data, list):
             for block_index, block_data in enumerate(blocks_data):
@@ -98,7 +122,7 @@ def normalize_synap_response(
                         type=block_type,
                         page_number=page_number,
                         reading_order=int(block_data.get("reading_order", reading_order)),
-                        text=str(block_data.get("text", block_data.get("content", ""))),
+                        text=_content_text(block_data),
                         bbox=_bbox(block_data.get("bbox", block_data.get("bounding_box"))),
                         confidence=block_data.get("confidence"),
                         html=block_data.get("html"),

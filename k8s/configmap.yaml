@@ -6,8 +6,10 @@ metadata:
 data:
   APP_ENV: "development"
   APP_NAME: "ParseLab"
-  # 내일 시연용 임시 DB. Pod가 재생성되면 emptyDir와 함께 초기화된다.
+  # 내일 시연용 SQLite. 실행은 emptyDir, 재배포 보존은 NAS Snapshot을 사용한다.
   DATABASE_URL: "sqlite+aiosqlite:////app/sqlite/parselab.db"
+  SQLITE_DB_PATH: "/app/sqlite/parselab.db"
+  SQLITE_BACKUP_PATH: "/app/data/dwp_comp/parselab/demo-state/parselab.db"
   DATA_ROOT: "/app/data/dwp_comp/parselab/storage"
   MAX_UPLOAD_SIZE_MB: "100"
   MAX_CONCURRENT_RUNS: "1"
@@ -30,7 +32,8 @@ data:
   FASOO_AUTH_REDIRECT_URL: "/commonui"
   FASOO_AUTH_LANG: "ko"
   FASOO_TIMEOUT_SECONDS: "300"
-  FASOO_ARTIFACT_WAIT_SECONDS: "5"
+  # 개발기 실측상 파수 NAS 산출물 생성에 약 6분이 걸릴 수 있다.
+  FASOO_ARTIFACT_WAIT_SECONDS: "600"
   FASOO_DETECT_PATH: "/piiapi/detect/system/path"
   FASOO_CONFIGURATION_PATH: "/piiapi/configuration"
   NAS_MOUNT_PATH: "/app/data/dwp_comp"

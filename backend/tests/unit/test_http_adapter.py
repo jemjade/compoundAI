@@ -228,6 +228,64 @@ class FakeSynapClient:
         raise AssertionError(f"Unexpected Synap path: {path}")
 
 
+class FakeSynapChatClient(FakeSynapClient):
+    async def post(self, url: str, **kwargs: object) -> httpx.Response:
+        path = urlparse(url).path
+        request = httpx.Request("POST", url)
+        if path == "/filestatus/synap-fid":
+            self.calls.append(("POST", path))
+            return httpx.Response(
+                200,
+                json={
+                    "status": 200,
+                    "result": {
+                        "filestatus": "SUCCESS",
+                        "returncode": 0,
+                        "total_pages": 1,
+                    },
+                },
+                request=request,
+            )
+        if path == "/result/synap-fid":
+            self.calls.append(("POST", path))
+            return httpx.Response(
+                200,
+                json={
+                    "status": 200,
+                    "result": {
+                        "type": "div",
+                        "contents": [
+                            {
+                                "type": "div",
+                                "contents": [
+                                    {
+                                        "type": "text",
+                                        "contents": [
+                                            {
+                                                "type": "p",
+                                                "contents": ["첫 번째 문장"],
+                                            }
+                                        ],
+                                    },
+                                    {
+                                        "type": "text",
+                                        "contents": [
+                                            {
+                                                "type": "p",
+                                                "contents": ["두 번째 문장"],
+                                            }
+                                        ],
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                },
+                request=request,
+            )
+        return await super().post(url, **kwargs)
+
+
 class RejectingSynapClient(FakeSynapClient):
     async def post(self, url: str, **kwargs: object) -> httpx.Response:
         if urlparse(url).path == "/da":
@@ -382,6 +440,35 @@ async def test_synap_http_adapter_uses_structured_normalizer(
         ("POST", "/result/synap-fid"),
         ("POST", "/delete/synap-fid"),
     ]
+
+
+async def test_synap_http_adapter_extracts_chat_contents(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    FakeSynapChatClient.calls = []
+    monkeypatch.setattr(httpx, "AsyncClient", FakeSynapChatClient)
+    monkeypatch.setattr(
+        "app.adapters.parsers.synap_http.get_settings",
+        lambda: SimpleNamespace(synap_api_key="synap-secret"),
+    )
+    connector = SimpleNamespace(
+        name="Synap Chat",
+        model_version="internal",
+        base_url="http://synap.internal",
+        timeout_seconds=5,
+        default_config={},
+    )
+    adapter = SynapHttpAdapter(connector)
+    source = tmp_path / "sample.txt"
+    source.write_text("source", encoding="utf-8")
+
+    result = await adapter.parse(source, tmp_path, {"use_image_ocr": True})
+    canonical = await adapter.normalize(result, "document", "run")
+
+    assert result.text == "첫 번째 문장\n\n두 번째 문장"
+    assert canonical.full_text == "첫 번째 문장\n\n두 번째 문장"
+    assert canonical.pages[0].blocks[0].text == "첫 번째 문장\n두 번째 문장"
 
 
 async def test_synap_http_adapter_requires_api_key(tmp_path: Path, monkeypatch) -> None:

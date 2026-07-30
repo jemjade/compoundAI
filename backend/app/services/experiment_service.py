@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.db.models.document import Document
 from app.db.models.experiment import (
@@ -13,7 +14,7 @@ from app.db.models.experiment import (
     ExperimentRun,
     ParseStatus,
 )
-from app.db.models.result import DeidentificationResult
+from app.db.models.result import DeidentificationResult, RunResult
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.parser_repository import ParserRepository
@@ -28,7 +29,11 @@ from app.schemas.experiment import (
 from app.schemas.result import DeidentificationSummary
 from app.services.storage_service import StorageService
 from app.task_manager.manager import TaskManager
-from app.task_manager.pipeline import execute_deidentification, execute_run
+from app.task_manager.pipeline import (
+    _deidentification_input_path,
+    execute_deidentification,
+    execute_run,
+)
 from app.utils.config import merge_config
 from app.utils.config_validation import validate_parser_config
 
@@ -270,8 +275,16 @@ class ExperimentService:
                 DeidentificationStatus.INTERRUPTED,
             }
         )
+        if retry_deidentification and not await self._has_reusable_deidentification_input(run):
+            # 이전 Parser가 성공 상태만 남기고 비어 있거나 유실된 산출물을 만든 경우
+            # 후속 단계만 반복하면 같은 실패가 재현되므로 Parsing부터 다시 실행한다.
+            retry_parse = True
+            retry_deidentification = False
         if not retry_parse and not retry_deidentification:
             raise AppError("RUN_NOT_RETRYABLE", "Only failed or interrupted runs can retry.", 409)
+        stored_deidentification = await self.session.scalar(
+            select(DeidentificationResult).where(DeidentificationResult.run_id == run.id)
+        )
         if retry_parse:
             run.parse_status = ParseStatus.PENDING
             run.deidentification_status = (
@@ -284,21 +297,43 @@ class ExperimentService:
             run.started_at = None
             run.completed_at = None
             run.latency_ms = None
+            if stored_deidentification is not None:
+                stored_deidentification.result_path = None
+                stored_deidentification.masked_file_path = None
+                stored_deidentification.detected_entity_count = None
+                stored_deidentification.masked_entity_count = None
+                stored_deidentification.error_message = None
+                stored_deidentification.metrics = {}
         else:
             # 후속 단계만 재실행할 때는 성공한 Parser 산출물을 재사용한다.
             run.deidentification_status = DeidentificationStatus.PENDING
-            stored_result = await self.session.scalar(
-                select(DeidentificationResult).where(DeidentificationResult.run_id == run.id)
-            )
-            if stored_result is not None:
-                stored_result.error_message = None
-                stored_result.metrics = {}
+            if stored_deidentification is not None:
+                stored_deidentification.error_message = None
+                stored_deidentification.metrics = {}
         await self.session.commit()
         if retry_parse:
             self._submit(run.id)
         else:
             self._submit_deidentification(run.id)
         return run
+
+    async def _has_reusable_deidentification_input(self, run: ExperimentRun) -> bool:
+        document = await self.session.get(Document, run.document_id)
+        parser_result = await self.session.scalar(
+            select(RunResult).where(RunResult.run_id == run.id)
+        )
+        if document is None or parser_result is None:
+            return False
+        try:
+            _deidentification_input_path(
+                get_settings().fasoo_input_type,
+                document,
+                parser_result,
+                self.storage,
+            )
+        except AppError:
+            return False
+        return True
 
     async def cancel(self, run_id: UUID, user_id: UUID) -> ExperimentRun:
         run = await self.session.get(ExperimentRun, run_id)

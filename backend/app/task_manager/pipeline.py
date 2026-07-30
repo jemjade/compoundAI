@@ -106,18 +106,23 @@ async def execute_run(
                 ) from exc
             latency_ms = int((monotonic() - started) * 1000)
             blocks = [block for page in canonical.pages for block in page.blocks]
-            result = RunResult(
-                run_id=run.id,
+            result = await session.scalar(select(RunResult).where(RunResult.run_id == run.id))
+            result_values = {
                 **paths,
-                preview_text=canonical.full_text[:1000],
-                page_count=len(canonical.pages),
-                text_length=len(canonical.full_text),
-                block_count=len(blocks),
-                table_count=sum(block.type == "table" for block in blocks),
-                image_count=sum(block.type == "image" for block in blocks),
-                parser_metrics=execution_result.metrics,
-            )
-            session.add(result)
+                "preview_text": canonical.full_text[:1000],
+                "page_count": len(canonical.pages),
+                "text_length": len(canonical.full_text),
+                "block_count": len(blocks),
+                "table_count": sum(block.type == "table" for block in blocks),
+                "image_count": sum(block.type == "image" for block in blocks),
+                "parser_metrics": execution_result.metrics,
+            }
+            if result is None:
+                result = RunResult(run_id=run.id, **result_values)
+                session.add(result)
+            else:
+                for field, value in result_values.items():
+                    setattr(result, field, value)
             run.parse_status = ParseStatus.SUCCEEDED
             run.latency_ms = latency_ms
             run.completed_at = datetime.now(UTC)

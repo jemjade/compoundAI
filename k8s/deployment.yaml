@@ -20,8 +20,28 @@ spec:
         runAsGroup: 2000
         fsGroup: 2000
       initContainers:
+        - name: restore-sqlite
+          image: registry.haiqv.ai/haiqv/parselab:20260730-synap-fasoo-retry-fix
+          imagePullPolicy: Always
+          command: ["python", "-m", "app.sqlite_snapshot"]
+          args: ["restore", "$(SQLITE_BACKUP_PATH)", "$(SQLITE_DB_PATH)"]
+          envFrom:
+            - configMapRef:
+                name: parselab-config
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: /app/sqlite
+            - name: dwp-nas-volume
+              mountPath: /app/data/dwp_comp
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
         - name: migrate
-          image: registry.haiqv.ai/haiqv/parselab:latest
+          image: registry.haiqv.ai/haiqv/parselab:20260730-synap-fasoo-retry-fix
           imagePullPolicy: Always
           command: ["alembic", "upgrade", "head"]
           envFrom:
@@ -41,7 +61,7 @@ spec:
               memory: "512Mi"
       containers:
         - name: parselab
-          image: registry.haiqv.ai/haiqv/parselab:latest
+          image: registry.haiqv.ai/haiqv/parselab:20260730-synap-fasoo-retry-fix
           imagePullPolicy: Always
           command: ["uvicorn"]
           args:
@@ -85,6 +105,16 @@ spec:
               port: http
             periodSeconds: 20
             failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - python
+                  - -m
+                  - app.sqlite_snapshot
+                  - backup
+                  - /app/sqlite/parselab.db
+                  - /app/data/dwp_comp/parselab/demo-state/parselab.db
           volumeMounts:
             - name: sqlite-data
               mountPath: /app/sqlite

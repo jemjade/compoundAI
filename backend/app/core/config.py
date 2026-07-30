@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     fasoo_auth_lang: str = "ko"
     fasoo_api_key: str | None = None
     fasoo_timeout_seconds: int = 300
-    fasoo_artifact_wait_seconds: float = 5.0
+    fasoo_artifact_wait_seconds: float = 600.0
     fasoo_detect_path: str = "/piiapi/detect/system/path"
     fasoo_configuration_path: str = "/piiapi/configuration"
     nas_mount_path: Path = Path("/app/data/dwp_comp")

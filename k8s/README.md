@@ -8,18 +8,22 @@ Runtime 모두 비활성화해 모델이 Pod에 포함되지 않는다.
 
 - `oasis-be` Namespace가 존재해야 한다.
 - `oasis-be`에 `dwp-nas-volume` PVC가 존재해야 한다.
-- Registry에 `registry.haiqv.ai/haiqv/parselab:latest` 이미지를 Push해야 한다.
+- Registry에 Deployment가 참조하는 ParseLab 이미지를 Push해야 한다.
 
 ## 시연용 SQLite
 
 공용 PostgreSQL을 변경하지 않도록 개발기 시연 배포는 Pod의 `emptyDir`에 SQLite
 파일(`/app/sqlite/parselab.db`)을 만든다. 같은 Pod 안에서 Backend Container가
-재시작될 때는 유지되지만 Deployment Rollout이나 Pod 재생성 시 DB가 초기화된다.
-초기화 후에는 첫 사용자 가입과 Synap Connector 등록을 다시 해야 한다.
+재시작될 때는 그대로 유지된다. 시연 중 Deployment Rollout에도 계정과 Connector를
+유지하도록 종료 시 SQLite의 일관된 Snapshot을
+`/dwp_comp/parselab/demo-state/parselab.db`에 저장하고 새 Pod의 Init Container가
+복원한다. SQLite 자체는 계속 Pod의 `emptyDir`에서 실행하므로 NFS 파일 잠금 문제는
+발생하지 않는다.
 
-문서와 Fasoo 작업 파일은 기존 NAS 전용 경로에 남는다. SQLite 파일은 NAS에 두지
-않으므로 NFS 파일 잠금 문제는 발생하지 않는다. 시연 이후 PostgreSQL로 전환할 때는
-`DATABASE_URL`과 Deployment의 `sqlite-data` Mount만 교체하면 된다.
+문서와 Fasoo 작업 파일도 기존 NAS 전용 경로에 남는다. 노드 장애처럼 `preStop`이
+실행되지 않는 비정상 종료에서는 마지막 정상 Snapshot 이후 데이터가 유실될 수 있다.
+시연 이후 PostgreSQL로 전환할 때는 `DATABASE_URL`, Snapshot Lifecycle과
+Deployment의 `sqlite-data` Mount를 교체하면 된다.
 
 이미지는 PaddleOCR 없이 Build한다.
 
@@ -27,7 +31,7 @@ Runtime 모두 비활성화해 모델이 Pod에 포함되지 않는다.
 docker buildx build \
   --platform linux/amd64 \
   --build-arg INSTALL_PADDLEOCR=false \
-  -t registry.haiqv.ai/haiqv/parselab:latest \
+  -t registry.haiqv.ai/haiqv/parselab:20260730-synap-fasoo-retry-fix \
   --push \
   backend
 ```

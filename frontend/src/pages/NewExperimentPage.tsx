@@ -7,13 +7,22 @@ import { ApiError, api } from "../lib/api";
 import { formatBytes } from "../lib/format";
 import type { DocumentItem, Parser, ParserPreset } from "../types";
 
+type ExecutionMode = "single" | "compare";
+
+const defaultName = (mode: ExecutionMode) =>
+  mode === "single" ? "문서 단건 처리" : "Parser 비교";
+
 export function NewExperimentPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [name, setName] = useState("Mock Parser 비교");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialMode: ExecutionMode =
+    searchParams.get("mode") === "compare" ? "compare" : "single";
+  const [mode, setMode] = useState<ExecutionMode>(initialMode);
+  const [name, setName] = useState(defaultName(initialMode));
   const [description, setDescription] = useState("");
   const [documentId, setDocumentId] = useState(searchParams.get("document") ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectionInitialized, setSelectionInitialized] = useState(false);
   const [presetByParser, setPresetByParser] = useState<Record<string, string>>({});
   const [overrideByParser, setOverrideByParser] = useState<Record<string, string>>({});
   const [runDeidentification, setRunDeidentification] = useState(true);
@@ -33,10 +42,17 @@ export function NewExperimentPage() {
     })),
   });
   useEffect(() => {
-    if (parsers.data?.length && selected.size === 0) {
-      setSelected(new Set(parsers.data.map((parser) => parser.id)));
+    if (parsers.data?.length && !selectionInitialized) {
+      setSelected(
+        new Set(
+          mode === "single"
+            ? [parsers.data[0].id]
+            : parsers.data.map((parser) => parser.id),
+        ),
+      );
+      setSelectionInitialized(true);
     }
-  }, [parsers.data, selected.size]);
+  }, [mode, parsers.data, selectionInitialized]);
   useEffect(() => {
     if (!documentId && documents.data?.[0]) setDocumentId(documents.data[0].id);
   }, [documentId, documents.data]);
@@ -63,11 +79,32 @@ export function NewExperimentPage() {
     onError: (caught) =>
       setError(caught instanceof ApiError ? caught.message : "실험을 만들지 못했습니다."),
   });
+  const changeMode = (nextMode: ExecutionMode) => {
+    if (nextMode === mode) return;
+    setMode(nextMode);
+    setError("");
+    setName((current) => (current === defaultName(mode) ? defaultName(nextMode) : current));
+    setSelected((current) => {
+      if (nextMode === "compare" || current.size <= 1) return current;
+      return new Set([[...current][0]]);
+    });
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("mode", nextMode);
+    setSearchParams(nextParams, { replace: true });
+  };
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError("");
-    if (!documentId || selected.size < 2) {
-      setError("문서 1개와 비교할 Parser 2개 이상을 선택하세요.");
+    if (!documentId) {
+      setError("처리할 문서를 선택하세요.");
+      return;
+    }
+    if (mode === "single" && selected.size !== 1) {
+      setError("단건 처리에 사용할 Parser 1개를 선택하세요.");
+      return;
+    }
+    if (mode === "compare" && selected.size < 2) {
+      setError("비교할 Parser를 2개 이상 선택하세요.");
       return;
     }
     try {
@@ -89,7 +126,7 @@ export function NewExperimentPage() {
     return (
       <EmptyState
         title="먼저 문서가 필요합니다"
-        description="실험은 하나의 원본 문서와 2개 이상의 Parser로 구성됩니다."
+        description="문서를 업로드한 뒤 Parser 단건 처리 또는 비교 실행을 시작할 수 있습니다."
         action={
           <Link className="button primary" to="/documents">
             문서 업로드
@@ -103,23 +140,51 @@ export function NewExperimentPage() {
     <form onSubmit={submit}>
       <header className="page-header">
         <div>
-          <span className="eyebrow">NEW EXPERIMENT</span>
-          <h1>비교 실험 만들기</h1>
-          <p>API는 Run을 DB에 기록한 뒤 즉시 응답하고 작업은 백그라운드에서 실행됩니다.</p>
+          <span className="eyebrow">NEW TASK</span>
+          <h1>{mode === "single" ? "문서 단건 처리" : "Parser 비교 실행"}</h1>
+          <p>
+            {mode === "single"
+              ? "하나의 Parser로 문서를 처리하고 필요하면 Fasoo 비식별화까지 연속 실행합니다."
+              : "같은 문서를 여러 Parser로 처리해 결과와 성능을 비교합니다."}
+          </p>
         </div>
         <button className="button primary" disabled={create.isPending}>
-          {create.isPending ? "등록 중…" : "실험 실행 →"}
+          {create.isPending
+            ? "등록 중…"
+            : mode === "single"
+              ? "단건 처리 실행 →"
+              : "비교 실행 →"}
         </button>
       </header>
       {error && <div className="error-banner">{error}</div>}
       <div className="experiment-form">
+        <section className="execution-mode-panel" aria-label="실행 방식">
+          <button
+            type="button"
+            className={mode === "single" ? "active" : ""}
+            onClick={() => changeMode("single")}
+            aria-pressed={mode === "single"}
+          >
+            <strong>단건 처리</strong>
+            <span>문서 1개 · Parser 1개</span>
+          </button>
+          <button
+            type="button"
+            className={mode === "compare" ? "active" : ""}
+            onClick={() => changeMode("compare")}
+            aria-pressed={mode === "compare"}
+          >
+            <strong>비교 실행</strong>
+            <span>문서 1개 · Parser 2개 이상</span>
+          </button>
+        </section>
         <section className="form-section">
           <span className="step-number">01</span>
           <div className="form-section-body">
-            <h2>실험 정보</h2>
+            <h2>작업 정보</h2>
             <div className="field-grid">
               <label>
-                실험 이름
+                작업 이름
                 <input value={name} onChange={(event) => setName(event.target.value)} required />
               </label>
               <label>
@@ -162,9 +227,11 @@ export function NewExperimentPage() {
         <section className="form-section">
           <span className="step-number">03</span>
           <div className="form-section-body">
-            <h2>비교할 Parser</h2>
+            <h2>{mode === "single" ? "사용할 Parser" : "비교할 Parser"}</h2>
             <p className="muted">
-              Parser별 Preset을 선택하고 이번 Run에만 적용할 Config를 덮어쓸 수 있습니다.
+              {mode === "single"
+                ? "Parser 1개를 선택하세요. Preset과 이번 Run 전용 Config를 설정할 수 있습니다."
+                : "Parser를 2개 이상 선택하세요. Parser별 Preset과 Config를 설정할 수 있습니다."}
             </p>
             <div className="parser-choice-grid">
               {parsers.data?.map((parser, index) => (
@@ -174,10 +241,12 @@ export function NewExperimentPage() {
                 >
                   <label className="parser-choice-head">
                     <input
-                      type="checkbox"
+                      type={mode === "single" ? "radio" : "checkbox"}
+                      name={mode === "single" ? "parser" : undefined}
                       checked={selected.has(parser.id)}
                       onChange={() =>
                         setSelected((current) => {
+                          if (mode === "single") return new Set([parser.id]);
                           const next = new Set(current);
                           if (next.has(parser.id)) next.delete(parser.id);
                           else next.add(parser.id);
