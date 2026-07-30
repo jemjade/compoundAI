@@ -1,15 +1,25 @@
-# paserlab playground 배포
+# parselab oasis-be 배포
 
-Synap/Fasoo 연동 확인용 Backend 1 Pod를 `playground` Namespace에 배포한다.
-공용 개발기 Host의 `/paserlab/` 경로로 접근하며, PaddleOCR는 이미지 Build와
+Synap/Fasoo 연동 확인용 Backend 1 Pod를 `oasis-be` Namespace에 배포한다.
+공용 개발기 Host의 `/parselab/` 경로로 접근하며, PaddleOCR는 이미지 Build와
 Runtime 모두 비활성화해 모델이 Pod에 포함되지 않는다.
 
 ## 사전 조건
 
-- `playground` Namespace가 존재해야 한다.
-- `playground`에 `dwp-nas-volume` PVC가 존재해야 한다.
-- ParseLab 전용 PostgreSQL Database와 사용자를 준비해야 한다.
-- Registry에 `registry.haiqv.ai/haiqv/paserlab:latest` 이미지를 Push해야 한다.
+- `oasis-be` Namespace가 존재해야 한다.
+- `oasis-be`에 `dwp-nas-volume` PVC가 존재해야 한다.
+- Registry에 `registry.haiqv.ai/haiqv/parselab:latest` 이미지를 Push해야 한다.
+
+## 시연용 SQLite
+
+공용 PostgreSQL을 변경하지 않도록 개발기 시연 배포는 Pod의 `emptyDir`에 SQLite
+파일(`/app/sqlite/parselab.db`)을 만든다. 같은 Pod 안에서 Backend Container가
+재시작될 때는 유지되지만 Deployment Rollout이나 Pod 재생성 시 DB가 초기화된다.
+초기화 후에는 첫 사용자 가입과 Synap Connector 등록을 다시 해야 한다.
+
+문서와 Fasoo 작업 파일은 기존 NAS 전용 경로에 남는다. SQLite 파일은 NAS에 두지
+않으므로 NFS 파일 잠금 문제는 발생하지 않는다. 시연 이후 PostgreSQL로 전환할 때는
+`DATABASE_URL`과 Deployment의 `sqlite-data` Mount만 교체하면 된다.
 
 이미지는 PaddleOCR 없이 Build한다.
 
@@ -17,7 +27,7 @@ Runtime 모두 비활성화해 모델이 Pod에 포함되지 않는다.
 docker buildx build \
   --platform linux/amd64 \
   --build-arg INSTALL_PADDLEOCR=false \
-  -t registry.haiqv.ai/haiqv/paserlab:latest \
+  -t registry.haiqv.ai/haiqv/parselab:latest \
   --push \
   backend
 ```
@@ -30,11 +40,21 @@ docker buildx build \
 cp k8s/secret.env.example k8s/secret.env
 ```
 
-`k8s/secret.env`에 개발기 DB, JWT, Synap/Fasoo 값을 입력한 뒤 Secret을 생성한다.
-Database URL의 특수문자는 URL Encoding해야 한다.
+`k8s/secret.env`에 JWT, Synap API Key와 Fasoo 로그인 계정을 입력한 뒤 Secret을
+생성한다. DB 연결 정보는 ConfigMap의 시연용 SQLite URL을 사용한다.
+
+```dotenv
+FASOO_USERNAME=admin
+FASOO_PASSWORD=<실제 비밀번호>
+FASOO_API_KEY=
+```
+
+`FASOO_API_KEY`는 비워 둔다. Backend가 ConfigMap의 `FASOO_AUTH_URL`로 로그인해
+응답의 `access_token`을 Bearer Token으로 사용하고, `401`이면 한 번 재로그인한다.
+수동 발급한 정적 Token을 긴급하게 사용할 때만 `FASOO_API_KEY`에 값을 넣는다.
 
 ```bash
-kubectl -n playground create secret generic paserlab-secret \
+kubectl -n oasis-be create secret generic parselab-secret \
   --from-env-file=k8s/secret.env \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
@@ -43,28 +63,28 @@ kubectl -n playground create secret generic paserlab-secret \
 
 ```bash
 kubectl apply -k k8s
-kubectl -n playground rollout status deployment/paserlab
-kubectl -n playground get pod,service,ingress -l app.kubernetes.io/name=paserlab
+kubectl -n oasis-be rollout status deployment/parselab
+kubectl -n oasis-be get pod,service,ingress -l app.kubernetes.io/name=parselab
 ```
 
 개발기 URL:
 
 ```text
-https://oasis-dev.agentone.kr/paserlab/
-https://oasis-dev.agentone.kr/paserlab/health
-https://oasis-dev.agentone.kr/paserlab/docs
+https://oasis-dev.agentone.kr/parselab/
+https://oasis-dev.agentone.kr/parselab/health
+https://oasis-dev.agentone.kr/parselab/docs
 ```
 
-기존 `playground` Ingress 전체를 이 저장소에서 관리하지 않는다. `paserlab` Ingress는
+기존 `oasis-be` Ingress 전체를 이 저장소에서 관리하지 않는다. `parselab` Ingress는
 동일한 `oasis-dev.agentone.kr` Host와 `tls-agent-secret`을 사용하므로
 Ingress Nginx가 기존 `/teams-bot/`, `/roltimate`, `/hallucinations/`, `/chat/`
-경로와 `/paserlab/` 경로를 하나의 라우팅 설정으로 병합한다. 이렇게 하면 다른 팀
-경로를 덮어쓰지 않으면서 `/paserlab`에만 rewrite 규칙을 적용할 수 있다.
+경로와 `/parselab/` 경로를 하나의 라우팅 설정으로 병합한다. 이렇게 하면 다른 팀
+경로를 덮어쓰지 않으면서 `/parselab`에만 rewrite 규칙을 적용할 수 있다.
 
 Ingress를 거치지 않고 직접 확인해야 할 때는 Port Forward도 사용할 수 있다.
 
 ```bash
-kubectl -n playground port-forward service/paserlab 18000:80
+kubectl -n oasis-be port-forward service/parselab 18000:80
 curl http://localhost:18000/health
 ```
 
@@ -94,7 +114,7 @@ PDF/DOCX를 파수에 직접 전달하지 않는다.
 검증 파일과 결과는 다음 전용 하위 경로에만 생성된다.
 
 ```text
-/dwp_comp/paserlab/fasoo-smoke/{run_id}/
+/dwp_comp/parselab/fasoo-smoke/{run_id}/
 ```
 
 처음에는 `/piiapi/configuration` Health Check를 확인한 다음 작은 파일 한 건을

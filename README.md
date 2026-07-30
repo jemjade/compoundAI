@@ -1011,6 +1011,11 @@ FASOO_INPUT_TYPE=TEXT
 ```env
 FASOO_ENABLED=true
 FASOO_BASE_URL=https://intra-dev.agentone.kr:18443
+FASOO_AUTH_URL=http://172.16.56.83:9080/gateway/session/login
+FASOO_USERNAME=admin
+FASOO_PASSWORD=change-me
+FASOO_AUTH_REDIRECT_URL=/commonui
+FASOO_AUTH_LANG=ko
 FASOO_TIMEOUT_SECONDS=300
 FASOO_ARTIFACT_WAIT_SECONDS=5
 FASOO_DETECT_PATH=/piiapi/detect/system/path
@@ -1045,8 +1050,16 @@ maskedPath=/dwp_comp/parselab/{run_id}/masked/masked.txt
 인증서 Bundle을 Pod에 Mount하고 `FASOO_CA_BUNDLE`에 파일 경로를 지정합니다.
 
 정상 완료 시 결과 JSON은 `deidentified` 산출물로, 마스킹 파일은 `masked`
-산출물로 다운로드할 수 있습니다. `FASOO_API_KEY`가 지정된 환경에서만 Bearer
-Header를 전송하며, API Key와 문서 원문은 애플리케이션 로그에 기록하지 않습니다.
+산출물로 다운로드할 수 있습니다. 자동 로그인은 Form 형식으로 `username`,
+`password`, `redirectUrl`, `lang`을 전송하고 응답 최상위 `access_token`을
+Bearer Token으로 사용합니다. Token은 Backend Process에서 재사용하며 Fasoo API가
+`401`을 반환하면 한 번 다시 로그인한 뒤 같은 요청을 재시도합니다. 로그인 정보,
+Access Token, 문서 원문은 애플리케이션 로그에 기록하지 않습니다.
+
+`FASOO_API_KEY`는 이전 설정과의 호환을 위한 선택값입니다. 이 값에 수동 발급한
+Access Token을 지정하면 자동 로그인보다 우선하며, `401` 자동 갱신은 수행하지
+않습니다. 지속 실행 환경에서는 `FASOO_API_KEY`를 비워 두고
+`FASOO_AUTH_URL`, `FASOO_USERNAME`, `FASOO_PASSWORD`를 사용합니다.
 `patternOptions`, `labelOptions` 등 전체 정책을 그대로 지정해야 하는 환경에서는
 `FASOO_RULE_JSON`에 `rule` 객체 전체를 JSON 한 줄로 설정하면 개별 Pattern/Label
 환경변수보다 우선 적용됩니다.

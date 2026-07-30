@@ -13,6 +13,7 @@ from app.adapters.deidentifiers.fasoo_http import (
     local_to_fasoo_path,
 )
 from app.adapters.deidentifiers.mock import MockDeidentifierAdapter
+from app.adapters.deidentifiers.registry import get_deidentifier_adapter
 from app.core.config import Settings
 from app.core.exceptions import AppError
 
@@ -125,6 +126,166 @@ async def test_fasoo_path_api_stages_nas_and_reads_artifacts(
     assert payload["maskedPath"] == "/dwp_comp/parselab/run-output/masked/masked.txt"
     assert payload["rule"]["patterns"] == ["pattern-id"]
     assert "callbackUrl" not in payload
+
+
+async def test_fasoo_login_caches_access_token_and_refreshes_once_on_401(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    nas_root = tmp_path / "nas"
+    nas_root.mkdir()
+    login_payloads: list[dict[str, Any]] = []
+    health_tokens: list[str | None] = []
+    detect_tokens: list[str | None] = []
+
+    class AuthenticatingFasooClient:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        async def __aenter__(self) -> "AuthenticatingFasooClient":
+            return self
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+        async def get(
+            self,
+            url: str,
+            *,
+            headers: dict[str, str],
+            **_: object,
+        ) -> httpx.Response:
+            health_tokens.append(headers.get("Authorization"))
+            return httpx.Response(200, request=httpx.Request("GET", url))
+
+        async def post(
+            self,
+            url: str,
+            *,
+            data: dict[str, Any] | None = None,
+            json: dict[str, Any] | None = None,
+            headers: dict[str, str] | None = None,
+            **_: object,
+        ) -> httpx.Response:
+            if url.endswith("/gateway/session/login"):
+                assert data is not None
+                login_payloads.append(data)
+                token = f"token-{len(login_payloads)}"
+                return httpx.Response(
+                    200,
+                    json={"access_token": token},
+                    request=httpx.Request("POST", url),
+                )
+
+            assert json is not None
+            token = (headers or {}).get("Authorization")
+            detect_tokens.append(token)
+            if token == "Bearer token-1":
+                return httpx.Response(401, request=httpx.Request("POST", url))
+
+            def local_path(remote_path: str) -> Path:
+                return nas_root / Path(remote_path).relative_to("/dwp_comp")
+
+            local_path(json["outputPath"]).write_text(
+                '{"detectedCount": 1, "maskedCount": 1}',
+                encoding="utf-8",
+            )
+            local_path(json["maskedPath"]).write_text("masked", encoding="utf-8")
+            return httpx.Response(200, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "AsyncClient", AuthenticatingFasooClient)
+    adapter = FasooHttpDeidentifierAdapter(
+        Settings(
+            fasoo_enabled=True,
+            fasoo_base_url="https://fasoo.internal:18443",
+            fasoo_auth_url="http://fasoo-auth.internal:9080/gateway/session/login",
+            fasoo_username="admin",
+            fasoo_password="secret",
+            fasoo_patterns=["pattern-id"],
+            nas_mount_path=nas_root,
+            fasoo_artifact_wait_seconds=0.1,
+        )
+    )
+    source = tmp_path / "input.txt"
+    source.write_text("input", encoding="utf-8")
+    output_dir = tmp_path / "run"
+    output_dir.mkdir()
+
+    health = await adapter.health_check()
+    result = await adapter.deidentify(source, "TEXT", output_dir, {})
+
+    assert health["healthy"] is True
+    assert result.provider == "FASOO"
+    assert login_payloads == [
+        {
+            "username": "admin",
+            "password": "secret",
+            "redirectUrl": "/commonui",
+            "lang": "ko",
+        },
+        {
+            "username": "admin",
+            "password": "secret",
+            "redirectUrl": "/commonui",
+            "lang": "ko",
+        },
+    ]
+    assert health_tokens == ["Bearer token-1"]
+    assert detect_tokens == ["Bearer token-1", "Bearer token-2"]
+
+
+async def test_fasoo_health_reports_missing_access_token(tmp_path: Path, monkeypatch) -> None:
+    class MissingTokenClient:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        async def __aenter__(self) -> "MissingTokenClient":
+            return self
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+        async def post(self, url: str, **_: object) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={"unexpected": "value"},
+                request=httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr(httpx, "AsyncClient", MissingTokenClient)
+    adapter = FasooHttpDeidentifierAdapter(
+        Settings(
+            fasoo_enabled=True,
+            fasoo_base_url="https://fasoo.internal:18443",
+            fasoo_auth_url="http://fasoo-auth.internal:9080/gateway/session/login",
+            fasoo_username="admin",
+            fasoo_password="secret",
+            fasoo_patterns=["pattern-id"],
+            nas_mount_path=tmp_path,
+        )
+    )
+
+    health = await adapter.health_check()
+
+    assert health == {
+        "healthy": False,
+        "error": "FASOO_AUTHENTICATION_FAILED",
+        "provider": "FASOO",
+    }
+
+
+def test_fasoo_registry_reuses_adapter_for_token_cache(tmp_path: Path) -> None:
+    settings = Settings(
+        fasoo_enabled=True,
+        fasoo_base_url="https://fasoo.internal:18443",
+        fasoo_patterns=["pattern-id"],
+        nas_mount_path=tmp_path,
+    )
+
+    first = get_deidentifier_adapter(settings)
+    second = get_deidentifier_adapter(settings)
+
+    assert first is second
 
 
 def test_fasoo_request_and_rule_match_sync_contract(tmp_path: Path) -> None:

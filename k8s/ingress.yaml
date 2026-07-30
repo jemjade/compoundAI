@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: paserlab
-  namespace: playground
+  name: parselab
+  namespace: oasis-be
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "110m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
@@ -20,10 +20,10 @@ spec:
     - host: oasis-dev.agentone.kr
       http:
         paths:
-          - path: /paserlab(/|$)(.*)
+          - path: /parselab(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:
-                name: paserlab
+                name: parselab
                 port:
                   number: 80

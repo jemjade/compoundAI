@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: paserlab
-  namespace: playground
+  name: parselab
+  namespace: oasis-be
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: paserlab
+      app: parselab
   template:
     metadata:
       labels:
-        app: paserlab
+        app: parselab
     spec:
       securityContext:
         runAsUser: 2001
@@ -21,14 +21,17 @@ spec:
         fsGroup: 2000
       initContainers:
         - name: migrate
-          image: registry.haiqv.ai/haiqv/paserlab:latest
+          image: registry.haiqv.ai/haiqv/parselab:latest
           imagePullPolicy: Always
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef:
-                name: paserlab-config
+                name: parselab-config
             - secretRef:
-                name: paserlab-secret
+                name: parselab-secret
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: /app/sqlite
           resources:
             requests:
               cpu: "100m"
@@ -37,8 +40,8 @@ spec:
               cpu: "500m"
               memory: "512Mi"
       containers:
-        - name: paserlab
-          image: registry.haiqv.ai/haiqv/paserlab:latest
+        - name: parselab
+          image: registry.haiqv.ai/haiqv/parselab:latest
           imagePullPolicy: Always
           command: ["uvicorn"]
           args:
@@ -48,15 +51,15 @@ spec:
             - "--port"
             - "8000"
             - "--root-path"
-            - "/paserlab"
+            - "/parselab"
           ports:
             - name: http
               containerPort: 8000
           envFrom:
             - configMapRef:
-                name: paserlab-config
+                name: parselab-config
             - secretRef:
-                name: paserlab-secret
+                name: parselab-secret
           resources:
             requests:
               cpu: "250m"
@@ -83,9 +86,13 @@ spec:
             periodSeconds: 20
             failureThreshold: 3
           volumeMounts:
+            - name: sqlite-data
+              mountPath: /app/sqlite
             - name: dwp-nas-volume
               mountPath: /app/data/dwp_comp
       volumes:
+        - name: sqlite-data
+          emptyDir: {}
         - name: dwp-nas-volume
           persistentVolumeClaim:
             claimName: dwp-nas-volume

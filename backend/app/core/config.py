@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     paddleocr_use_seal_recognition: bool = False
     fasoo_enabled: bool = False
     fasoo_base_url: str | None = None
+    fasoo_auth_url: str | None = None
+    fasoo_username: str | None = None
+    fasoo_password: str | None = None
+    fasoo_auth_redirect_url: str = "/commonui"
+    fasoo_auth_lang: str = "ko"
     fasoo_api_key: str | None = None
     fasoo_timeout_seconds: int = 300
     fasoo_artifact_wait_seconds: float = 5.0
@@ -102,9 +107,17 @@ class Settings(BaseSettings):
     def blank_paddleocr_cache_dir_is_none(cls, value: object) -> object:
         return None if value == "" else value
 
-    @field_validator("docling_base_url", "mineru_base_url", mode="before")
+    @field_validator(
+        "docling_base_url",
+        "mineru_base_url",
+        "fasoo_auth_url",
+        "fasoo_username",
+        "fasoo_password",
+        "fasoo_api_key",
+        mode="before",
+    )
     @classmethod
-    def blank_parser_url_is_none(cls, value: object) -> object:
+    def blank_optional_string_is_none(cls, value: object) -> object:
         return None if value == "" else value
 
     @field_validator("paddleocr_device")

@@ -310,11 +310,109 @@ class FasooHttpDeidentifierAdapter(DeidentifierAdapter):
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self._access_token: str | None = None
+        self._token_lock = asyncio.Lock()
 
-    def _headers(self) -> dict[str, str]:
+    def _login_configured(self) -> bool:
+        values = (
+            self.settings.fasoo_auth_url,
+            self.settings.fasoo_username,
+            self.settings.fasoo_password,
+        )
+        if not any(values):
+            return False
+        if not all(values):
+            raise AppError(
+                "FASOO_CONFIGURATION_INVALID",
+                "FASOO_AUTH_URL, FASOO_USERNAME, and FASOO_PASSWORD must be configured together.",
+            )
+        if not self.settings.fasoo_auth_url.startswith(("http://", "https://")):
+            raise AppError(
+                "FASOO_CONFIGURATION_INVALID",
+                "FASOO_AUTH_URL must be an http or https URL.",
+            )
+        return True
+
+    async def _login(self, client: httpx.AsyncClient) -> str:
+        if not self._login_configured():
+            raise AppError(
+                "FASOO_CONFIGURATION_INVALID",
+                "Fasoo login credentials are not configured.",
+            )
+        try:
+            response = await client.post(
+                self.settings.fasoo_auth_url,
+                data={
+                    "username": self.settings.fasoo_username,
+                    "password": self.settings.fasoo_password,
+                    "redirectUrl": self.settings.fasoo_auth_redirect_url,
+                    "lang": self.settings.fasoo_auth_lang,
+                },
+                timeout=min(self.settings.fasoo_timeout_seconds, 10),
+            )
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise AppError(
+                "FASOO_AUTHENTICATION_FAILED",
+                "Fasoo login request timed out.",
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            raise AppError(
+                "FASOO_AUTHENTICATION_FAILED",
+                f"Fasoo login returned status {exc.response.status_code}.",
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise AppError(
+                "FASOO_AUTHENTICATION_FAILED",
+                f"Fasoo login request failed: {type(exc).__name__}.",
+            ) from exc
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AppError(
+                "FASOO_AUTHENTICATION_FAILED",
+                "Fasoo login response is not valid JSON.",
+            ) from exc
+        token = payload.get("access_token") if isinstance(payload, dict) else None
+        if not isinstance(token, str) or not token.strip():
+            raise AppError(
+                "FASOO_AUTHENTICATION_FAILED",
+                "Fasoo login response did not contain access_token.",
+            )
+        return token.strip()
+
+    async def _token(
+        self,
+        client: httpx.AsyncClient,
+        *,
+        rejected_token: str | None = None,
+    ) -> str | None:
         if not self.settings.fasoo_api_key:
-            return {}
-        return {"Authorization": f"Bearer {self.settings.fasoo_api_key}"}
+            if not self._login_configured():
+                return None
+            async with self._token_lock:
+                if self._access_token and (
+                    rejected_token is None or self._access_token != rejected_token
+                ):
+                    return self._access_token
+                self._access_token = await self._login(client)
+                return self._access_token
+        return self.settings.fasoo_api_key
+
+    async def _headers(
+        self,
+        client: httpx.AsyncClient,
+        *,
+        rejected_token: str | None = None,
+    ) -> tuple[dict[str, str], str | None]:
+        token = await self._token(client, rejected_token=rejected_token)
+        if token is None:
+            return {}, None
+        return {"Authorization": f"Bearer {token}"}, token
+
+    def _can_refresh_token(self, token: str | None) -> bool:
+        return token is not None and not self.settings.fasoo_api_key and self._login_configured()
 
     def _client_kwargs(self, timeout: float) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
@@ -334,10 +432,20 @@ class FasooHttpDeidentifierAdapter(DeidentifierAdapter):
             async with httpx.AsyncClient(
                 **self._client_kwargs(min(self.settings.fasoo_timeout_seconds, 10))
             ) as client:
-                response = await client.get(url, headers=self._headers())
+                headers, token = await self._headers(client)
+                response = await client.get(url, headers=headers)
+                if response.status_code == 401 and self._can_refresh_token(token):
+                    headers, _ = await self._headers(client, rejected_token=token)
+                    response = await client.get(url, headers=headers)
             return {
                 "healthy": response.is_success,
                 "status_code": response.status_code,
+                "provider": "FASOO",
+            }
+        except AppError as exc:
+            return {
+                "healthy": False,
+                "error": exc.code,
                 "provider": "FASOO",
             }
         except httpx.HTTPError as exc:
@@ -414,11 +522,19 @@ class FasooHttpDeidentifierAdapter(DeidentifierAdapter):
             async with httpx.AsyncClient(
                 **self._client_kwargs(self.settings.fasoo_timeout_seconds)
             ) as client:
+                headers, token = await self._headers(client)
                 response = await client.post(
                     url,
-                    headers=self._headers(),
+                    headers=headers,
                     json=request_payload,
                 )
+                if response.status_code == 401 and self._can_refresh_token(token):
+                    headers, _ = await self._headers(client, rejected_token=token)
+                    response = await client.post(
+                        url,
+                        headers=headers,
+                        json=request_payload,
+                    )
             response.raise_for_status()
         except httpx.TimeoutException as exc:
             raise AppError(

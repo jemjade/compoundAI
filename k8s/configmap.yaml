@@ -1,12 +1,14 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: paserlab-config
-  namespace: playground
+  name: parselab-config
+  namespace: oasis-be
 data:
   APP_ENV: "development"
   APP_NAME: "ParseLab"
-  DATA_ROOT: "/app/data/dwp_comp/paserlab/storage"
+  # 내일 시연용 임시 DB. Pod가 재생성되면 emptyDir와 함께 초기화된다.
+  DATABASE_URL: "sqlite+aiosqlite:////app/sqlite/parselab.db"
+  DATA_ROOT: "/app/data/dwp_comp/parselab/storage"
   MAX_UPLOAD_SIZE_MB: "100"
   MAX_CONCURRENT_RUNS: "1"
   CORS_ORIGINS: "https://oasis-dev.agentone.kr,http://localhost:5173,http://localhost:15173"
@@ -24,13 +26,16 @@ data:
   # Fasoo는 전용 NAS 하위 디렉터리만 사용한다.
   FASOO_ENABLED: "true"
   FASOO_BASE_URL: "https://intra-dev.agentone.kr:18443"
+  FASOO_AUTH_URL: "http://172.16.56.83:9080/gateway/session/login"
+  FASOO_AUTH_REDIRECT_URL: "/commonui"
+  FASOO_AUTH_LANG: "ko"
   FASOO_TIMEOUT_SECONDS: "300"
   FASOO_ARTIFACT_WAIT_SECONDS: "5"
   FASOO_DETECT_PATH: "/piiapi/detect/system/path"
   FASOO_CONFIGURATION_PATH: "/piiapi/configuration"
   NAS_MOUNT_PATH: "/app/data/dwp_comp"
   FASOO_NAS_PATH: "/dwp_comp"
-  FASOO_WORK_SUBDIR: "paserlab/fasoo-smoke"
+  FASOO_WORK_SUBDIR: "parselab/fasoo-smoke"
   # 각 Parser의 전처리 완료 산출물(output.txt)을 파수 입력으로 사용한다.
   FASOO_INPUT_TYPE: "TEXT"
   FASOO_MASKING_CHAR: "*"
