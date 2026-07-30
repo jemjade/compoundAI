@@ -115,9 +115,14 @@ export function TasksPage() {
         title="Tasks"
         description="Parser 실행, 비식별화 단계와 결과 산출물을 하나의 작업 흐름에서 추적합니다."
         actions={
-          <Link className="button primary" to="/experiments/new">
-            <Icon name="plus" size={15} /> 새 비교 실행
-          </Link>
+          <div className="header-actions">
+            <Link className="button ghost" to="/experiments/new?mode=compare">
+              <Icon name="compare" size={15} /> 비교 실행
+            </Link>
+            <Link className="button primary" to="/experiments/new?mode=single">
+              <Icon name="plus" size={15} /> 단건 처리
+            </Link>
+          </div>
         }
       />
 
@@ -282,14 +287,14 @@ export function TasksPage() {
             compact
             icon="tasks"
             title={tasks.length ? "조건에 맞는 작업이 없습니다" : "아직 실행된 작업이 없습니다"}
-            description={tasks.length ? "검색어나 상태 필터를 변경해 보세요." : "문서와 Parser를 선택해 첫 비교를 실행하세요."}
+            description={tasks.length ? "검색어나 상태 필터를 변경해 보세요." : "문서와 Parser를 선택해 첫 작업을 실행하세요."}
             action={
               tasks.length ? (
                 <button type="button" className="button ghost" onClick={() => { setSearch(""); setFilter("ALL"); }}>
                   필터 초기화
                 </button>
               ) : (
-                <Link className="button primary" to="/experiments/new">비교 만들기</Link>
+                <Link className="button primary" to="/experiments/new?mode=single">작업 만들기</Link>
               )
             }
           />

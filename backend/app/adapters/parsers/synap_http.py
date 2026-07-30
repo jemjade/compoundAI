@@ -96,6 +96,8 @@ def _coerce_page(value: Any, page_number: int) -> dict[str, Any]:
 
 
 def _collect_text(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value] if value.strip() else []
     if isinstance(value, list):
         return [text for item in value for text in _collect_text(item)]
     if not isinstance(value, dict):
@@ -104,7 +106,9 @@ def _collect_text(value: Any) -> list[str]:
         text = value.get(key)
         if isinstance(text, str) and text.strip():
             return [text]
-    for key in ("blocks", "elements", "children"):
+    # DocuAnalyzer Chat 응답은 실제 문자열을
+    # pages[].contents[].contents 아래에 중첩해서 반환한다.
+    for key in ("blocks", "elements", "children", "contents"):
         nested = value.get(key)
         if isinstance(nested, list):
             texts = _collect_text(nested)

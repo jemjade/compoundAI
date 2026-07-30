@@ -28,6 +28,9 @@ services:
       MAX_CONCURRENT_RUNS: 2
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       COMMAND_ALLOWED_EXECUTABLES: ${COMMAND_ALLOWED_EXECUTABLES:-docling,uv,docker}
+      DOCLING_BASE_URL: ${DOCLING_BASE_URL:-}
+      DOCLING_API_KEY: ${DOCLING_API_KEY:-parselab-local-docling}
+      MINERU_BASE_URL: ${MINERU_BASE_URL:-}
       SYNAP_API_KEY: ${SYNAP_API_KEY:-}
       PADDLEOCR_ENABLED: ${PADDLEOCR_ENABLED:-false}
       PADDLEOCR_DEVICE: ${PADDLEOCR_DEVICE:-cpu}
@@ -42,9 +45,14 @@ services:
       PADDLEOCR_USE_SEAL_RECOGNITION: ${PADDLEOCR_USE_SEAL_RECOGNITION:-false}
       FASOO_ENABLED: ${FASOO_ENABLED:-false}
       FASOO_BASE_URL: ${FASOO_BASE_URL:-}
+      FASOO_AUTH_URL: ${FASOO_AUTH_URL:-}
+      FASOO_USERNAME: ${FASOO_USERNAME:-}
+      FASOO_PASSWORD: ${FASOO_PASSWORD:-}
+      FASOO_AUTH_REDIRECT_URL: ${FASOO_AUTH_REDIRECT_URL:-/commonui}
+      FASOO_AUTH_LANG: ${FASOO_AUTH_LANG:-ko}
       FASOO_API_KEY: ${FASOO_API_KEY:-}
       FASOO_TIMEOUT_SECONDS: ${FASOO_TIMEOUT_SECONDS:-300}
-      FASOO_ARTIFACT_WAIT_SECONDS: ${FASOO_ARTIFACT_WAIT_SECONDS:-5}
+      FASOO_ARTIFACT_WAIT_SECONDS: ${FASOO_ARTIFACT_WAIT_SECONDS:-600}
       FASOO_DETECT_PATH: ${FASOO_DETECT_PATH:-/piiapi/detect/system/path}
       FASOO_CONFIGURATION_PATH: ${FASOO_CONFIGURATION_PATH:-/piiapi/configuration}
       NAS_MOUNT_PATH: ${NAS_MOUNT_PATH:-/app/data/dwp_comp}
@@ -78,6 +86,16 @@ services:
       - "${FRONTEND_PORT:-5173}:80"
     depends_on:
       - backend
+
+  docling:
+    image: ${DOCLING_IMAGE:-quay.io/docling-project/docling-serve-cpu:latest}
+    profiles: ["parsers"]
+    environment:
+      DOCLING_DEVICE: ${DOCLING_DEVICE:-cpu}
+      DOCLING_SERVE_ENABLE_UI: "false"
+      DOCLING_SERVE_API_KEY: ${DOCLING_API_KEY:-parselab-local-docling}
+    ports:
+      - "${DOCLING_PORT:-15001}:5001"
 
 volumes:
   postgres_data:

@@ -7,38 +7,245 @@ import type { Parser, ParserPreset } from "../types";
 
 const ADAPTERS = {
   BUILTIN: ["mock_parser", "pp_structure_v3"],
-  HTTP: ["synap_http", "generic_http"],
+  HTTP: ["mineru_http", "docling_http", "generic_http", "synap_http"],
   COMMAND: ["docling_command", "generic_command"],
 } as const;
 
 type ExecutionType = keyof typeof ADAPTERS;
+
+type ParserTemplate = {
+  name: string;
+  slug: string;
+  description: string;
+  provider: string;
+  modelName: string;
+  modelVersion: string;
+  baseUrl?: string;
+  commandTemplate?: string[];
+  defaultConfig: Record<string, unknown>;
+  configSchema: Record<string, unknown>;
+  formats: string[];
+  capabilities: string[];
+  timeout: number;
+};
+
+const PARSER_TEMPLATES: Partial<Record<string, ParserTemplate>> = {
+  pp_structure_v3: {
+    name: "PaddleOCR PP-StructureV3",
+    slug: "pp-structure-v3",
+    description: "PaddleOCR 3.x 기반 로컬 문서 구조 분석 Parser",
+    provider: "PaddlePaddle",
+    modelName: "PP-StructureV3",
+    modelVersion: "3.7.x",
+    defaultConfig: {
+      use_doc_orientation_classify: true,
+      use_doc_unwarping: true,
+      use_textline_orientation: true,
+      use_table_recognition: true,
+      use_formula_recognition: false,
+      use_chart_recognition: false,
+      use_seal_recognition: false,
+    },
+    configSchema: {
+      type: "object",
+      properties: {
+        use_doc_orientation_classify: { type: "boolean" },
+        use_doc_unwarping: { type: "boolean" },
+        use_textline_orientation: { type: "boolean" },
+        use_table_recognition: { type: "boolean" },
+        use_formula_recognition: { type: "boolean" },
+        use_chart_recognition: { type: "boolean" },
+        use_seal_recognition: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
+    formats: ["pdf", "png", "jpg", "jpeg", "webp"],
+    capabilities: ["TEXT", "MARKDOWN", "TABLE", "LAYOUT", "OCR"],
+    timeout: 1800,
+  },
+  mineru_http: {
+    name: "MinerU 3.x",
+    slug: "mineru-3",
+    description: "MinerU 3.x 공식 mineru-api 기반 문서 구조 분석 Parser",
+    provider: "OpenDataLab",
+    modelName: "MinerU",
+    modelVersion: "3.x",
+    baseUrl: "http://mineru:8000",
+    defaultConfig: {
+      backend: "pipeline",
+      effort: "medium",
+      parse_method: "auto",
+      lang_list: ["korean"],
+      formula_enable: true,
+      table_enable: true,
+      image_analysis: false,
+      start_page_id: 0,
+      end_page_id: 99999,
+    },
+    configSchema: {
+      type: "object",
+      properties: {
+        backend: {
+          type: "string",
+          enum: ["hybrid-engine", "pipeline", "vlm-engine"],
+        },
+        effort: { type: "string", enum: ["medium", "high"] },
+        parse_method: { type: "string", enum: ["auto", "ocr", "txt"] },
+        lang_list: {
+          type: "array",
+          items: { type: "string", minLength: 1 },
+          minItems: 1,
+        },
+        formula_enable: { type: "boolean" },
+        table_enable: { type: "boolean" },
+        image_analysis: { type: "boolean" },
+        start_page_id: { type: "integer", minimum: 0 },
+        end_page_id: { type: "integer", minimum: 0 },
+      },
+      additionalProperties: false,
+    },
+    formats: ["pdf", "png", "jpg", "jpeg", "webp", "docx", "pptx", "xlsx"],
+    capabilities: ["TEXT", "MARKDOWN", "TABLE", "LAYOUT", "OCR", "FORMULA"],
+    timeout: 1800,
+  },
+  docling_http: {
+    name: "Docling",
+    slug: "docling",
+    description: "Docling Serve v1 기반 문서 변환 및 구조 분석 Parser",
+    provider: "LF AI & Data",
+    modelName: "Docling",
+    modelVersion: "2.x",
+    baseUrl: "http://docling:5001",
+    defaultConfig: {
+      do_ocr: true,
+      force_ocr: false,
+      ocr_lang: ["ko", "en"],
+      table_mode: "accurate",
+      image_export_mode: "placeholder",
+    },
+    configSchema: {
+      type: "object",
+      properties: {
+        do_ocr: { type: "boolean" },
+        force_ocr: { type: "boolean" },
+        ocr_lang: {
+          type: "array",
+          items: { type: "string", minLength: 1 },
+        },
+        table_mode: { type: "string", enum: ["fast", "accurate"] },
+        image_export_mode: {
+          type: "string",
+          enum: ["placeholder", "embedded", "referenced"],
+        },
+      },
+      additionalProperties: false,
+    },
+    formats: [
+      "pdf",
+      "docx",
+      "pptx",
+      "xlsx",
+      "html",
+      "md",
+      "txt",
+      "png",
+      "jpg",
+      "jpeg",
+      "tiff",
+    ],
+    capabilities: ["TEXT", "MARKDOWN", "TABLE", "LAYOUT", "OCR"],
+    timeout: 900,
+  },
+  docling_command: {
+    name: "Docling",
+    slug: "docling",
+    description: "Docling 2.x 로컬 문서 변환 및 구조 분석 Parser",
+    provider: "LF AI & Data",
+    modelName: "Docling",
+    modelVersion: "2.x",
+    commandTemplate: [
+      "docling",
+      "convert",
+      "{input_path}",
+      "--to",
+      "md",
+      "--to",
+      "json",
+      "--output",
+      "{output_dir}",
+    ],
+    defaultConfig: {},
+    configSchema: { type: "object", additionalProperties: false },
+    formats: [
+      "pdf",
+      "docx",
+      "pptx",
+      "xlsx",
+      "html",
+      "md",
+      "txt",
+      "png",
+      "jpg",
+      "jpeg",
+      "tiff",
+    ],
+    capabilities: ["TEXT", "MARKDOWN", "TABLE", "LAYOUT", "OCR"],
+    timeout: 900,
+  },
+};
+const DEFAULT_TEMPLATE = PARSER_TEMPLATES.mineru_http as ParserTemplate;
 
 export function ParserFormPage() {
   const { id } = useParams();
   const editing = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [description, setDescription] = useState("");
-  const [provider, setProvider] = useState("");
-  const [modelName, setModelName] = useState("");
-  const [modelVersion, setModelVersion] = useState("");
+  const [name, setName] = useState(DEFAULT_TEMPLATE.name);
+  const [slug, setSlug] = useState(DEFAULT_TEMPLATE.slug);
+  const [description, setDescription] = useState(DEFAULT_TEMPLATE.description);
+  const [provider, setProvider] = useState(DEFAULT_TEMPLATE.provider);
+  const [modelName, setModelName] = useState(DEFAULT_TEMPLATE.modelName);
+  const [modelVersion, setModelVersion] = useState(DEFAULT_TEMPLATE.modelVersion);
   const [executionType, setExecutionType] = useState<ExecutionType>("HTTP");
-  const [adapterKey, setAdapterKey] = useState<string>("synap_http");
-  const [baseUrl, setBaseUrl] = useState("");
+  const [adapterKey, setAdapterKey] = useState<string>("mineru_http");
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_TEMPLATE.baseUrl ?? "");
   const [commandTemplate, setCommandTemplate] = useState(
-    JSON.stringify(["docling", "{input_path}", "--output", "{output_dir}"], null, 2),
+    JSON.stringify(DEFAULT_TEMPLATE.commandTemplate ?? [], null, 2),
   );
-  const [defaultConfig, setDefaultConfig] = useState("{}");
-  const [configSchema, setConfigSchema] = useState("{}");
-  const [formats, setFormats] = useState("pdf,docx,pptx");
-  const [capabilities, setCapabilities] = useState("TEXT,MARKDOWN,TABLE,LAYOUT");
-  const [timeout, setTimeoutValue] = useState(300);
+  const [defaultConfig, setDefaultConfig] = useState(
+    JSON.stringify(DEFAULT_TEMPLATE.defaultConfig, null, 2),
+  );
+  const [configSchema, setConfigSchema] = useState(
+    JSON.stringify(DEFAULT_TEMPLATE.configSchema, null, 2),
+  );
+  const [formats, setFormats] = useState(DEFAULT_TEMPLATE.formats.join(","));
+  const [capabilities, setCapabilities] = useState(
+    DEFAULT_TEMPLATE.capabilities.join(","),
+  );
+  const [timeout, setTimeoutValue] = useState(DEFAULT_TEMPLATE.timeout);
   const [active, setActive] = useState(true);
   const [error, setError] = useState("");
   const [presetName, setPresetName] = useState("");
   const [presetConfig, setPresetConfig] = useState("{}");
+
+  const applyAdapterTemplate = (nextAdapter: string) => {
+    setAdapterKey(nextAdapter);
+    const template = PARSER_TEMPLATES[nextAdapter];
+    if (!template || editing) return;
+    setName(template.name);
+    setSlug(template.slug);
+    setDescription(template.description);
+    setProvider(template.provider);
+    setModelName(template.modelName);
+    setModelVersion(template.modelVersion);
+    setBaseUrl(template.baseUrl ?? "");
+    setCommandTemplate(JSON.stringify(template.commandTemplate ?? [], null, 2));
+    setDefaultConfig(JSON.stringify(template.defaultConfig, null, 2));
+    setConfigSchema(JSON.stringify(template.configSchema, null, 2));
+    setFormats(template.formats.join(","));
+    setCapabilities(template.capabilities.join(","));
+    setTimeoutValue(template.timeout);
+  };
 
   const parser = useQuery({
     queryKey: ["parser", id],
@@ -241,7 +448,7 @@ export function ParserFormPage() {
                     onChange={(event) => {
                       const next = event.target.value as ExecutionType;
                       setExecutionType(next);
-                      setAdapterKey(ADAPTERS[next][0]);
+                      applyAdapterTemplate(ADAPTERS[next][0]);
                     }}
                   >
                     <option value="BUILTIN">BUILTIN</option>
@@ -251,7 +458,10 @@ export function ParserFormPage() {
                 </label>
                 <label>
                   Adapter
-                  <select value={adapterKey} onChange={(event) => setAdapterKey(event.target.value)}>
+                  <select
+                    value={adapterKey}
+                    onChange={(event) => applyAdapterTemplate(event.target.value)}
+                  >
                     {ADAPTERS[executionType].map((adapter) => (
                       <option key={adapter}>{adapter}</option>
                     ))}
@@ -279,7 +489,13 @@ export function ParserFormPage() {
                     type="url"
                     value={baseUrl}
                     onChange={(event) => setBaseUrl(event.target.value)}
-                    placeholder="http://synap.internal"
+                    placeholder={
+                      adapterKey === "mineru_http"
+                        ? "http://mineru:8000"
+                        : adapterKey === "docling_http"
+                          ? "http://docling:5001"
+                        : "http://parser.internal"
+                    }
                     required
                   />
                 </label>

@@ -24,7 +24,9 @@ ADAPTER_EXECUTION_TYPES = {
     "mock_parser": ExecutionType.BUILTIN,
     "pp_structure_v3": ExecutionType.BUILTIN,
     "synap_http": ExecutionType.HTTP,
+    "mineru_http": ExecutionType.HTTP,
     "generic_http": ExecutionType.HTTP,
+    "docling_http": ExecutionType.HTTP,
     "docling_command": ExecutionType.COMMAND,
     "generic_command": ExecutionType.COMMAND,
 }

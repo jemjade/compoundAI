@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parselab
+  namespace: oasis-be
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: parselab
+  template:
+    metadata:
+      labels:
+        app: parselab
+    spec:
+      securityContext:
+        runAsUser: 2001
+        runAsGroup: 2000
+        fsGroup: 2000
+      initContainers:
+        - name: restore-sqlite
+          image: registry.haiqv.ai/haiqv/parselab:20260730-synap-fasoo-retry-fix
+          imagePullPolicy: Always
+          command: ["python", "-m", "app.sqlite_snapshot"]
+          args: ["restore", "$(SQLITE_BACKUP_PATH)", "$(SQLITE_DB_PATH)"]
+          envFrom:
+            - configMapRef:
+                name: parselab-config
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: /app/sqlite
+            - name: dwp-nas-volume
+              mountPath: /app/data/dwp_comp
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+        - name: migrate
+          image: registry.haiqv.ai/haiqv/parselab:20260730-synap-fasoo-retry-fix
+          imagePullPolicy: Always
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: parselab-config
+            - secretRef:
+                name: parselab-secret
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: /app/sqlite
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      containers:
+        - name: parselab
+          image: registry.haiqv.ai/haiqv/parselab:20260730-synap-fasoo-retry-fix
+          imagePullPolicy: Always
+          command: ["uvicorn"]
+          args:
+            - "app.main:app"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8000"
+            - "--root-path"
+            - "/parselab"
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: parselab-config
+            - secretRef:
+                name: parselab-secret
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - python
+                  - -m
+                  - app.sqlite_snapshot
+                  - backup
+                  - /app/sqlite/parselab.db
+                  - /app/data/dwp_comp/parselab/demo-state/parselab.db
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: /app/sqlite
+            - name: dwp-nas-volume
+              mountPath: /app/data/dwp_comp
+      volumes:
+        - name: sqlite-data
+          emptyDir: {}
+        - name: dwp-nas-volume
+          persistentVolumeClaim:
+            claimName: dwp-nas-volume
+      terminationGracePeriodSeconds: 30

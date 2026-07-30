@@ -2,8 +2,10 @@
 
 from app.adapters.parsers.base import ParserAdapter
 from app.adapters.parsers.docling_command import DoclingCommandAdapter
+from app.adapters.parsers.docling_http import DoclingHttpAdapter
 from app.adapters.parsers.generic_command import GenericCommandParserAdapter
 from app.adapters.parsers.generic_http import GenericHttpParserAdapter
+from app.adapters.parsers.mineru_http import MinerUHttpAdapter
 from app.adapters.parsers.mock import MockParserAdapter
 from app.adapters.parsers.paddle_structure import PPStructureV3Adapter
 from app.adapters.parsers.synap_http import SynapHttpAdapter
@@ -15,6 +17,8 @@ PARSER_ADAPTERS: dict[str, type[ParserAdapter]] = {
     "pp_structure_v3": PPStructureV3Adapter,
     "synap_http": SynapHttpAdapter,
     "docling_command": DoclingCommandAdapter,
+    "docling_http": DoclingHttpAdapter,
+    "mineru_http": MinerUHttpAdapter,
     "generic_http": GenericHttpParserAdapter,
     "generic_command": GenericCommandParserAdapter,
 }

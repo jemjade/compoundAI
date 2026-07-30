@@ -949,8 +949,13 @@ FASOO_INPUT_TYPE=TEXT
 ```env
 FASOO_ENABLED=true
 FASOO_BASE_URL=https://intra-dev.agentone.kr:18443
+FASOO_AUTH_URL=http://172.16.56.83:9080/gateway/session/login
+FASOO_USERNAME=admin
+FASOO_PASSWORD=change-me
+FASOO_AUTH_REDIRECT_URL=/commonui
+FASOO_AUTH_LANG=ko
 FASOO_TIMEOUT_SECONDS=300
-FASOO_ARTIFACT_WAIT_SECONDS=5
+FASOO_ARTIFACT_WAIT_SECONDS=600
 FASOO_DETECT_PATH=/piiapi/detect/system/path
 FASOO_CONFIGURATION_PATH=/piiapi/configuration
 NAS_MOUNT_PATH=/app/data/dwp_comp
@@ -958,20 +963,22 @@ FASOO_NAS_PATH=/dwp_comp
 FASOO_WORK_SUBDIR=parselab
 FASOO_PATTERNS=8352e3cefcf841b8ae8eacbafc9dc2e8,470f4ac178d948f389d848e705306ddd,75a718ffe4d646008c606b0578ad2e78,68502af4bf7d4274997d3698243a7b69
 FASOO_LABELS=SS_BRAND,AD_METRO,AD_CITY,AD_ADDRESS,AD_BRAND,AD_DETAIL,AD_POSTAL
-FASOO_INPUT_TYPE=ORIGINAL_FILE
+FASOO_INPUT_TYPE=TEXT
 ```
 
 `FASOO_INPUT_TYPE`은 `ORIGINAL_FILE`, `TEXT`, `MARKDOWN`, `CANONICAL_JSON` 중 하나입니다.
-마스킹된 원본 파일이 필요하면 `ORIGINAL_FILE`을 사용합니다. Adapter는 원본을
+기본 `TEXT` 구성은 선택한 각 Parser의 전처리가 완료된 뒤 Run별 `output.txt`를
+파수에 전달합니다. 마스킹된 원본 파일이 필요할 때만 `ORIGINAL_FILE`을 사용합니다.
+Adapter는 선택한 입력 산출물을
 `NAS_MOUNT_PATH/parselab/{run_id}/input` 아래에 복사하고 마스킹 결과 공간을
 `masked`로 분리한 뒤 다음 동기 계약을 호출합니다.
 
 ```text
 POST /piiapi/detect/system/path
 sync="true"
-inputPath=/dwp_comp/parselab/{run_id}/input/input.{ext}
+inputPath=/dwp_comp/parselab/{run_id}/input/input.txt
 outputPath=/dwp_comp/parselab/{run_id}/masked/result.json
-maskedPath=/dwp_comp/parselab/{run_id}/masked/masked.{ext}
+maskedPath=/dwp_comp/parselab/{run_id}/masked/masked.txt
 ```
 
 `NAS_MOUNT_PATH`는 Backend Pod가 PVC를 보는 경로이고 `FASOO_NAS_PATH`는 파수
@@ -981,8 +988,16 @@ maskedPath=/dwp_comp/parselab/{run_id}/masked/masked.{ext}
 인증서 Bundle을 Pod에 Mount하고 `FASOO_CA_BUNDLE`에 파일 경로를 지정합니다.
 
 정상 완료 시 결과 JSON은 `deidentified` 산출물로, 마스킹 파일은 `masked`
-산출물로 다운로드할 수 있습니다. `FASOO_API_KEY`가 지정된 환경에서만 Bearer
-Header를 전송하며, API Key와 문서 원문은 애플리케이션 로그에 기록하지 않습니다.
+산출물로 다운로드할 수 있습니다. 자동 로그인은 Form 형식으로 `username`,
+`password`, `redirectUrl`, `lang`을 전송하고 응답 최상위 `access_token`을
+Bearer Token으로 사용합니다. Token은 Backend Process에서 재사용하며 Fasoo API가
+`401`을 반환하면 한 번 다시 로그인한 뒤 같은 요청을 재시도합니다. 로그인 정보,
+Access Token, 문서 원문은 애플리케이션 로그에 기록하지 않습니다.
+
+`FASOO_API_KEY`는 이전 설정과의 호환을 위한 선택값입니다. 이 값에 수동 발급한
+Access Token을 지정하면 자동 로그인보다 우선하며, `401` 자동 갱신은 수행하지
+않습니다. 지속 실행 환경에서는 `FASOO_API_KEY`를 비워 두고
+`FASOO_AUTH_URL`, `FASOO_USERNAME`, `FASOO_PASSWORD`를 사용합니다.
 `patternOptions`, `labelOptions` 등 전체 정책을 그대로 지정해야 하는 환경에서는
 `FASOO_RULE_JSON`에 `rule` 객체 전체를 JSON 한 줄로 설정하면 개별 Pattern/Label
 환경변수보다 우선 적용됩니다.
@@ -1028,16 +1043,20 @@ PADDLEOCR_USE_SEAL_RECOGNITION=false
 `PADDLEOCR_DEVICE`는 `cpu`, `gpu`, `gpu:0` 형식을 허용합니다. GPU를 사용하려면
 배포 환경에 맞는 PaddlePaddle GPU 패키지를 별도로 선택해야 하며 CPU 패키지와
 동시에 설치하면 안 됩니다. 이 저장소가 제공하는 `paddleocr-cpu` extra와 기본
-Docker 설정은 CPU 전용입니다.
+Docker 설정은 CPU 전용입니다. PaddlePaddle 공식 PyPI 배포에는 Linux ARM64
+Wheel이 없으므로 Apple Silicon의 Docker에서는 그대로 빌드되지 않습니다. 이 경우
+macOS ARM64에서 Backend를 네이티브로 실행하거나 `linux/amd64` 빌드를 사용해야
+합니다. Kubernetes의 AMD64 Node에서는 위 Docker 설정을 그대로 사용할 수 있습니다.
 
 모델은 첫 작업 때 내려받고 프로세스 안에서 한 번만 초기화합니다.
 `PADDLEOCR_MODEL_CACHE_DIR`는 Docker의 `paddleocr_models` Volume에 연결되어 재시작
 후에도 다운로드를 재사용합니다. Uvicorn Worker를 여러 개 실행하면 Worker마다
 모델과 동시성 제한이 각각 생기므로 필요한 메모리도 Worker 수만큼 증가합니다.
 
-`PADDLEOCR_ENABLED=true`인 상태에서 최초 관리자 계정을 만들면
-`pp_structure_v3` 내장 Connector가 함께 등록됩니다. 이미 DB가 생성된 환경은
-관리자 Token으로 한 번 등록합니다.
+`pp_structure_v3` Connector는 설치 여부와 무관하게 Catalog에 항상 표시됩니다.
+패키지 또는 `PADDLEOCR_ENABLED=true` 설정이 준비되지 않은 환경에서는 Health
+응답에 사용 불가 사유가 표시되고 실행은 명확한 오류로 종료됩니다. 기존 DB에도
+Backend 재시작 시 idempotent하게 추가됩니다.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/parsers \
@@ -1084,6 +1103,64 @@ PDF 또는 이미지 문서를 업로드한 후 일반 Experiment 생성 API에�
 ID를 즉시 반환하며, 실제 추론은 In-Process Task Manager에서 실행됩니다. 결과는
 기존 정책에 따라 `raw.json`, `canonical.json`, `output.md`, `output.txt`로
 저장됩니다.
+
+### Docling
+
+Docling은 Backend 의존성과 ML Package가 충돌하지 않도록 공식 CPU 전용
+`docling-serve` 이미지로 분리합니다.
+
+```env
+DOCLING_BASE_URL=http://docling:5001
+DOCLING_DEVICE=cpu
+DOCLING_PORT=15001
+```
+
+로컬에서는 `parsers` Profile로 Docling Service를 기동합니다.
+
+```bash
+docker compose --profile parsers up -d docling
+docker compose up -d backend
+```
+
+Backend를 재시작하면 `Docling` Connector가 자동 등록됩니다. Adapter는 공식
+`GET /health`, `POST /v1/convert/file` 계약으로 Markdown, Text,
+DoclingDocument JSON을 함께 요청합니다. API Key를 활성화한 Docling Serve는
+양쪽 환경에 같은 `DOCLING_API_KEY`를 설정합니다.
+
+### MinerU 3.x
+
+MinerU는 ParseLab Backend와 같은 Python 환경에 합치지 않고 독립
+`mineru-api`/`mineru-router` 서비스로 실행합니다. ParseLab은 공식
+`GET /health`, `POST /file_parse` 계약을 사용하는 `mineru_http` Adapter로
+연결합니다.
+
+```env
+MINERU_BASE_URL=http://mineru:8000
+```
+
+값을 설정하고 Backend를 재시작하면 `MinerU 3.x` Connector가 자동 등록됩니다.
+기본 Profile은 한국어 CPU 실행에 맞춘 `pipeline`, `lang_list=["korean"]`이며
+Markdown과 content-list를 함께 받아 Page/Block Canonical 구조로 변환합니다.
+MinerU 서비스는 공식 설치 문서에 따라 3.x로 별도 배포합니다.
+
+```bash
+uv tool install --python 3.12 "mineru[all]>=3,<4"
+mineru-api --host 0.0.0.0 --port 8000
+```
+
+Apple Silicon 로컬 개발에서는 MinerU를 macOS에 네이티브로 띄우고 Docker
+Backend가 `host.docker.internal`을 통해 접근하도록 구성할 수 있습니다.
+
+```bash
+mineru-api --host 127.0.0.1 --port 18001
+```
+
+```env
+MINERU_BASE_URL=http://host.docker.internal:18001
+```
+
+Kubernetes에서는 MinerU를 별도 Deployment/Service로 두고 ParseLab의
+`MINERU_BASE_URL`을 Cluster Service 주소로 설정합니다.
 
 환경변수에서 꺼 둔 하위 모델을 작업 옵션으로 새로 켤 수는 없습니다. 예를 들어
 formula 인식을 사용하려면 `PADDLEOCR_USE_FORMULA_RECOGNITION=true`로 변경하고
@@ -1292,19 +1369,24 @@ Docling Command 등록 예:
 
 ```json
 {
-  "name": "Docling Local",
-  "slug": "docling-local",
+  "name": "Docling",
+  "slug": "docling",
   "execution_type": "COMMAND",
   "adapter_key": "docling_command",
   "command_template": [
     "docling",
+    "convert",
     "{input_path}",
+    "--to",
+    "md",
+    "--to",
+    "json",
     "--output",
     "{output_dir}"
   ],
   "default_config": {},
-  "supported_formats": ["pdf", "docx", "pptx"],
-  "timeout_seconds": 300
+  "supported_formats": ["pdf", "docx", "pptx", "xlsx", "html", "png", "jpg"],
+  "timeout_seconds": 900
 }
 ```
 

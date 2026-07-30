@@ -104,14 +104,17 @@ export function DashboardPage() {
       <PageHeader
         eyebrow="DOCUMENT INTELLIGENCE WORKSPACE"
         title="Overview"
-        description="여러 Parser의 실행 상태와 품질 신호를 한눈에 읽고 다음 실험으로 바로 이어가세요."
+        description="문서 단건 처리와 Parser 비교 실행 상태를 한눈에 확인하세요."
         actions={
           <div className="header-actions">
             <Link className="button ghost" to="/documents">
               <Icon name="upload" size={15} /> 문서 추가
             </Link>
-            <Link className="button primary" to="/experiments/new">
-              <Icon name="flask" size={15} /> 새 비교
+            <Link className="button ghost" to="/experiments/new?mode=compare">
+              <Icon name="compare" size={15} /> 새 비교
+            </Link>
+            <Link className="button primary" to="/experiments/new?mode=single">
+              <Icon name="flask" size={15} /> 단건 처리
             </Link>
           </div>
         }
@@ -207,7 +210,7 @@ export function DashboardPage() {
               compact
               icon="parser"
               title="아직 성능 데이터가 없습니다"
-              description="첫 비교 실행이 완료되면 Parser별 실제 처리 시간이 표시됩니다."
+              description="첫 문서 처리가 완료되면 Parser별 실제 처리 시간이 표시됩니다."
             />
           )}
         </article>
@@ -256,8 +259,8 @@ export function DashboardPage() {
               compact
               icon="flask"
               title="아직 실험이 없습니다"
-              description="문서와 Parser를 선택해 첫 비교를 실행하세요."
-              action={<Link className="button primary" to="/experiments/new">첫 비교 만들기</Link>}
+              description="문서와 Parser를 선택해 첫 작업을 실행하세요."
+              action={<Link className="button primary" to="/experiments/new?mode=single">첫 작업 만들기</Link>}
             />
           )}
         </article>

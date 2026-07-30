@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
@@ -26,6 +27,7 @@ function runStatus(run: Run) {
 export function ExperimentPage() {
   const { id = "" } = useParams();
   const queryClient = useQueryClient();
+  const [singleDetailsOpen, setSingleDetailsOpen] = useState(true);
   const experiment = useQuery({
     queryKey: ["experiment", id],
     queryFn: () => api<ExperimentDetail>(`/experiments/${id}`),
@@ -77,13 +79,15 @@ export function ExperimentPage() {
         actions={
           <>
             <StatusBadge status={data.status} />
-            <Link
-              className={`button primary ${successful < 2 ? "disabled" : ""}`}
-              to={successful >= 2 ? `/experiments/${id}/compare` : "#"}
-              aria-disabled={successful < 2}
-            >
-              <Icon name="compare" size={15} /> 결과 비교
-            </Link>
+            {data.runs.length >= 2 && (
+              <Link
+                className={`button primary ${successful < 2 ? "disabled" : ""}`}
+                to={successful >= 2 ? `/experiments/${id}/compare` : "#"}
+                aria-disabled={successful < 2}
+              >
+                <Icon name="compare" size={15} /> 결과 비교
+              </Link>
+            )}
           </>
         }
       >
@@ -207,7 +211,15 @@ export function ExperimentPage() {
               </div>
 
               {(run.error_message || run.deidentification || run.parse_status === "SUCCEEDED") && (
-                <details className="run-detail">
+                <details
+                  className="run-detail"
+                  open={data.runs.length === 1 ? singleDetailsOpen : undefined}
+                  onToggle={
+                    data.runs.length === 1
+                      ? (event) => setSingleDetailsOpen(event.currentTarget.open)
+                      : undefined
+                  }
+                >
                   <summary>
                     <span>Run details & artifacts</span>
                     <Icon name="chevronDown" size={14} />

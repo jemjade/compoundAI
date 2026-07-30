@@ -5,6 +5,31 @@ from app.adapters.parsers.generic_command import GenericCommandParserAdapter
 from app.normalizers.text_normalizer import text_to_canonical
 from app.schemas.canonical_document import CanonicalDocument
 
+DOCLING_COMMAND_TEMPLATE = [
+    "docling",
+    "convert",
+    "{input_path}",
+    "--to",
+    "md",
+    "--to",
+    "json",
+    "--output",
+    "{output_dir}",
+]
+DOCLING_SUPPORTED_FORMATS = [
+    "pdf",
+    "docx",
+    "pptx",
+    "xlsx",
+    "html",
+    "md",
+    "txt",
+    "png",
+    "jpg",
+    "jpeg",
+    "tiff",
+]
+
 
 class DoclingCommandAdapter(GenericCommandParserAdapter):
     async def normalize(

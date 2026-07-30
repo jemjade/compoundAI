@@ -24,6 +24,9 @@ class Settings(BaseSettings):
         "uv",
         "docker",
     ]
+    docling_base_url: str | None = None
+    docling_api_key: str | None = None
+    mineru_base_url: str | None = None
     synap_api_key: str | None = None
     paddleocr_enabled: bool = False
     paddleocr_device: str = "cpu"
@@ -38,9 +41,14 @@ class Settings(BaseSettings):
     paddleocr_use_seal_recognition: bool = False
     fasoo_enabled: bool = False
     fasoo_base_url: str | None = None
+    fasoo_auth_url: str | None = None
+    fasoo_username: str | None = None
+    fasoo_password: str | None = None
+    fasoo_auth_redirect_url: str = "/commonui"
+    fasoo_auth_lang: str = "ko"
     fasoo_api_key: str | None = None
     fasoo_timeout_seconds: int = 300
-    fasoo_artifact_wait_seconds: float = 5.0
+    fasoo_artifact_wait_seconds: float = 600.0
     fasoo_detect_path: str = "/piiapi/detect/system/path"
     fasoo_configuration_path: str = "/piiapi/configuration"
     nas_mount_path: Path = Path("/app/data/dwp_comp")
@@ -97,6 +105,19 @@ class Settings(BaseSettings):
     @field_validator("paddleocr_model_cache_dir", mode="before")
     @classmethod
     def blank_paddleocr_cache_dir_is_none(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator(
+        "docling_base_url",
+        "mineru_base_url",
+        "fasoo_auth_url",
+        "fasoo_username",
+        "fasoo_password",
+        "fasoo_api_key",
+        mode="before",
+    )
+    @classmethod
+    def blank_optional_string_is_none(cls, value: object) -> object:
         return None if value == "" else value
 
     @field_validator("paddleocr_device")

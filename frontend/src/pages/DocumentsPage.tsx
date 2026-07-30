@@ -72,7 +72,7 @@ export function DocumentsPage() {
       <PageHeader
         eyebrow="SOURCE LIBRARY"
         title="Documents"
-        description="원본 문서를 안전하게 보관하고 Parser 비교 이력과 연결해 관리합니다."
+        description="원본 문서를 보관하고 Parser 처리 이력과 연결해 관리합니다."
         actions={
           <button className="button primary" type="button" onClick={() => inputRef.current?.click()}>
             <Icon name="upload" size={15} />
@@ -165,8 +165,8 @@ export function DocumentsPage() {
             <EmptyState
               compact
               icon="document"
-              title={documents.data?.length ? "검색 결과가 없습니다" : "비교할 문서를 올려주세요"}
-              description={documents.data?.length ? "다른 문서명으로 검색해 보세요." : "지원 파일을 업로드하면 즉시 비교 실험에 사용할 수 있습니다."}
+              title={documents.data?.length ? "검색 결과가 없습니다" : "처리할 문서를 올려주세요"}
+              description={documents.data?.length ? "다른 문서명으로 검색해 보세요." : "지원 파일을 업로드하면 단건 처리 또는 비교 실행에 사용할 수 있습니다."}
               action={
                 documents.data?.length ? (
                   <button className="button ghost" type="button" onClick={() => setSearch("")}>검색 초기화</button>
@@ -196,8 +196,11 @@ export function DocumentsPage() {
             <h2 title={selected.original_filename}>{selected.original_filename}</h2>
             <p>{selected.mime_type}</p>
             <div className="detail-actions">
-              <Link className="button primary" to={`/experiments/new?document=${selected.id}`}>
-                <Icon name="flask" size={14} /> 비교 실행
+              <Link className="button primary" to={`/experiments/new?document=${selected.id}&mode=single`}>
+                <Icon name="flask" size={14} /> 단건 처리
+              </Link>
+              <Link className="button ghost" to={`/experiments/new?document=${selected.id}&mode=compare`}>
+                <Icon name="compare" size={14} /> 비교
               </Link>
               <button
                 type="button"
@@ -237,7 +240,7 @@ export function DocumentsPage() {
                   ))}
                 </div>
               ) : (
-                <p className="detail-empty">이 문서로 실행한 비교가 없습니다.</p>
+                <p className="detail-empty">이 문서의 처리 이력이 없습니다.</p>
               )}
             </section>
           </aside>
@@ -245,7 +248,7 @@ export function DocumentsPage() {
           <aside className="document-detail detail-placeholder">
             <Icon name="layers" size={24} />
             <strong>문서를 선택하세요</strong>
-            <p>메타데이터와 비교 이력을 확인할 수 있습니다.</p>
+            <p>메타데이터와 처리 이력을 확인할 수 있습니다.</p>
           </aside>
         )}
       </section>

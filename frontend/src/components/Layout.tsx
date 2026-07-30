@@ -15,7 +15,7 @@ const navigation: Array<{
   { to: "/documents", label: "Documents", icon: "document" },
   { to: "/tasks", label: "Tasks", icon: "tasks" },
   { to: "/parsers", label: "Parsers", icon: "parser" },
-  { to: "/experiments/new", label: "Compare Lab", icon: "compare" },
+  { to: "/experiments/new", label: "Process Lab", icon: "compare" },
   { to: "/evaluation", label: "Evaluation", icon: "evaluation" },
 ];
 
@@ -27,7 +27,7 @@ function pageName(pathname: string) {
   if (pathname.startsWith("/parsers/")) return "Parser profile";
   if (pathname.startsWith("/parsers")) return "Parsers";
   if (pathname.includes("/compare")) return "Comparison workspace";
-  if (pathname.startsWith("/experiments/new")) return "New comparison";
+  if (pathname.startsWith("/experiments/new")) return "New task";
   if (pathname.startsWith("/experiments/")) return "Task detail";
   if (pathname.startsWith("/evaluation")) return "Evaluation";
   return "ParseLab";
