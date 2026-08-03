@@ -26,6 +26,7 @@ class RunResult(UUIDPrimaryKeyMixin, Base):
     table_count: Mapped[int] = mapped_column(Integer, default=0)
     image_count: Mapped[int] = mapped_column(Integer, default=0)
     parser_metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    artifact_manifest: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

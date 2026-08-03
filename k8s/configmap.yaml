@@ -18,7 +18,9 @@ data:
   AUTO_CREATE_TABLES: "false"
   PYTHONDONTWRITEBYTECODE: "1"
 
-  # Synap URL은 Parser Connector의 base_url로 등록하고 API Key만 Secret에서 주입한다.
+  # URL이 설정되면 서버 시작 시 Box/Chat Parser Connector를 자동 등록한다.
+  SYNAP_BOX_BASE_URL: "http://docuanalyzer-service-box.docuanalyzer.svc.cluster.local/docuanalyzer-box"
+  SYNAP_CHAT_BASE_URL: "http://docuanalyzer-service-chat.docuanalyzer.svc.cluster.local/docuanalyzer-chat"
 
   # PP-StructureV3는 Synap/Fasoo 검증 Pod의 이미지와 메모리를 가볍게 유지하기 위해 끈다.
   PADDLEOCR_ENABLED: "false"

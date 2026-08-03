@@ -22,6 +22,7 @@ from app.db.models.experiment import (
 )
 from app.db.models.parser import ParserConnector
 from app.db.models.result import DeidentificationResult, RunResult
+from app.services.benchmark_service import BenchmarkService
 from app.services.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,13 @@ async def execute_run(
             run.parse_status = ParseStatus.SUCCEEDED
             run.latency_ms = latency_ms
             run.completed_at = datetime.now(UTC)
-            result_size_bytes = sum(storage.resolve(path).stat().st_size for path in paths.values())
+            await session.flush()
+            await _evaluate_run_safely(session, storage, run.id)
+            result_size_bytes = sum(
+                storage.resolve(path).stat().st_size
+                for key, path in paths.items()
+                if key != "artifact_manifest" and isinstance(path, str)
+            )
             should_deidentify = run.deidentification_status == DeidentificationStatus.PENDING
             # 이 Commit이 Parsing과 파수 작업 사이의 영속성 경계다.
             await session.commit()
@@ -272,6 +279,8 @@ async def execute_deidentification(
             stored_result.metrics = metrics
             stored_result.error_message = None
             run.deidentification_status = DeidentificationStatus.SUCCEEDED
+            await session.flush()
+            await _evaluate_run_safely(session, storage, run.id)
             await session.commit()
     except asyncio.CancelledError:
         await _mark_interrupted(run_id, session_factory)
@@ -367,3 +376,19 @@ async def _mark_interrupted(
             run.error_message = "Task was cancelled before completion."
             run.completed_at = datetime.now(UTC)
             await session.commit()
+
+
+async def _evaluate_run_safely(
+    session: AsyncSession,
+    storage: StorageService,
+    run_id: UUID,
+) -> None:
+    """평가 장애를 Savepoint 안에 격리해 Parser·비식별화 성공을 보존한다."""
+    try:
+        async with session.begin_nested():
+            await BenchmarkService(session, storage).evaluate_run(run_id)
+    except Exception:
+        logger.exception(
+            "automated_benchmark_failed",
+            extra={"task_id": str(run_id)},
+        )

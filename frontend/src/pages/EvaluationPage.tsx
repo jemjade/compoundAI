@@ -1,264 +1,385 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useState } from "react";
 import { Link } from "react-router";
 import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
 import { api } from "../lib/api";
-import { formatDuration } from "../lib/format";
-import type { Comparison, Experiment } from "../types";
+import { formatDate, formatDuration } from "../lib/format";
+import type {
+  BenchmarkSummary,
+  DocumentItem,
+  GroundTruth,
+  MetricAggregate,
+} from "../types";
 
-const metricDefinitions = {
-  text_score: "본문의 누락, 오인식과 전반적인 텍스트 품질에 대한 수동 평가",
-  table_score: "셀 병합, 행·열 구조와 표 내용 보존에 대한 수동 평가",
-  reading_order_score: "문서의 자연스러운 읽기 순서 재현에 대한 수동 평가",
-  deidentification_score: "민감 정보 탐지와 마스킹 결과에 대한 수동 평가",
-};
+const qualityMetrics = [
+  {
+    key: "overall_quality",
+    short: "Overall",
+    label: "종합 품질",
+    description: "측정 가능한 품질 차원만 동일 가중치로 평균",
+  },
+  {
+    key: "text_accuracy",
+    short: "Text",
+    label: "본문 정확도",
+    description: "Unicode 정규화 문자 편집 거리를 양쪽 길이로 정규화한 정확도",
+  },
+  {
+    key: "layout_f1_iou50",
+    short: "Layout",
+    label: "레이아웃 F1",
+    description: "동일 유형 블록을 IoU 0.5 기준으로 매칭한 F1",
+  },
+  {
+    key: "table_teds",
+    short: "Table",
+    label: "표 TEDS",
+    description: "Canonical 표 구조와 셀 내용을 반영한 TEDS-style 유사도",
+  },
+  {
+    key: "reading_order_accuracy",
+    short: "Order",
+    label: "읽기 순서",
+    description: "매칭 블록 순서의 역전쌍 비율 기반 정확도",
+  },
+  {
+    key: "formula_accuracy",
+    short: "Formula",
+    label: "수식 정확도",
+    description: "정규화 LaTeX 편집 거리 기반 정확도",
+  },
+  {
+    key: "pii_f1",
+    short: "PII",
+    label: "PII F1",
+    description: "유형·시작·끝 위치가 일치하는 민감정보 Span F1",
+  },
+] as const;
 
-type ScoreKey = keyof typeof metricDefinitions;
+function percentage(value: number | null | undefined) {
+  return typeof value === "number" ? `${(value * 100).toFixed(1)}%` : "—";
+}
 
-function average(values: Array<number | null | undefined>) {
-  const valid = values.filter((value): value is number => typeof value === "number");
-  return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
+function confidence(metric: MetricAggregate | undefined) {
+  if (!metric || metric.ci95_low === null || metric.ci95_high === null) return "표본 추가 필요";
+  return `95% CI ${percentage(metric.ci95_low)}–${percentage(metric.ci95_high)}`;
 }
 
 export function EvaluationPage() {
-  const experiments = useQuery({
-    queryKey: ["experiments"],
-    queryFn: () => api<Experiment[]>("/experiments"),
+  const queryClient = useQueryClient();
+  const [documentId, setDocumentId] = useState("");
+  const [groundTruthFile, setGroundTruthFile] = useState<File | null>(null);
+  const [datasetName, setDatasetName] = useState("internal-golden");
+  const [datasetVersion, setDatasetVersion] = useState("1.0");
+  const summary = useQuery({
+    queryKey: ["benchmark-summary"],
+    queryFn: () => api<BenchmarkSummary>("/benchmarks/summary"),
   });
-  const eligible = (experiments.data ?? [])
-    .filter((experiment) => ["COMPLETED", "PARTIALLY_COMPLETED"].includes(experiment.status))
-    .slice(0, 12);
-  const comparisons = useQueries({
-    queries: eligible.map((experiment) => ({
-      queryKey: ["comparison", experiment.id],
-      queryFn: () => api<Comparison>(`/experiments/${experiment.id}/comparison`),
-    })),
+  const groundTruths = useQuery({
+    queryKey: ["ground-truths"],
+    queryFn: () => api<GroundTruth[]>("/benchmarks/ground-truths"),
   });
-  const runs = useMemo(
-    () =>
-      comparisons.flatMap((query, index) =>
-        (query.data?.runs ?? []).map((run) => ({
-          ...run,
-          experimentId: eligible[index]?.id ?? "",
-          experimentName: eligible[index]?.name ?? "",
-          document: query.data?.document.filename ?? "",
-        })),
-      ),
-    [comparisons, eligible],
-  );
-  const evaluated = runs.filter((run) => run.evaluation);
-  const scoreKeys: ScoreKey[] = [
-    "text_score",
-    "table_score",
-    "reading_order_score",
-    "deidentification_score",
-  ];
-  const scores = scoreKeys.map((key) => ({
-    key,
-    value: average(evaluated.map((run) => run.evaluation?.[key])),
-  }));
-  const byParser = Object.values(
-    evaluated.reduce<Record<string, { name: string; runs: typeof evaluated }>>((acc, run) => {
-      acc[run.parser_name] ??= { name: run.parser_name, runs: [] };
-      acc[run.parser_name].runs.push(run);
-      return acc;
-    }, {}),
-  ).map((group) => ({
-    ...group,
-    score: average(
-      group.runs.flatMap((run) =>
-        scoreKeys.map((key) => run.evaluation?.[key]),
-      ),
-    ),
-    latency: average(group.runs.map((run) => run.metrics.latency_ms)),
-  })).sort((left, right) => (right.score ?? -1) - (left.score ?? -1));
-  const loading = experiments.isLoading || comparisons.some((query) => query.isLoading);
+  const documents = useQuery({
+    queryKey: ["documents"],
+    queryFn: () => api<DocumentItem[]>("/documents"),
+  });
+  const recompute = useMutation({
+    mutationFn: () =>
+      api<{ evaluated_runs: number; skipped_runs: number }>("/benchmarks/recompute", {
+        method: "POST",
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["benchmark-summary"] }),
+  });
+  const upload = useMutation({
+    mutationFn: async () => {
+      if (!documentId || !groundTruthFile) throw new Error("문서와 Ground Truth 파일을 선택하세요.");
+      const body = new FormData();
+      body.set("file", groundTruthFile);
+      body.set("dataset_name", datasetName);
+      body.set("dataset_version", datasetVersion);
+      body.set("schema_version", "1.0");
+      return api<GroundTruth>(`/benchmarks/documents/${documentId}/ground-truth`, {
+        method: "PUT",
+        body,
+      });
+    },
+    onSuccess: () => {
+      setGroundTruthFile(null);
+      queryClient.invalidateQueries({ queryKey: ["ground-truths"] });
+      queryClient.invalidateQueries({ queryKey: ["benchmark-summary"] });
+    },
+  });
+  const data = summary.data;
+
+  const submitGroundTruth = (event: FormEvent) => {
+    event.preventDefault();
+    upload.mutate();
+  };
 
   return (
     <>
       <PageHeader
-        eyebrow="QUALITY BENCHMARK"
+        eyebrow="GROUND-TRUTH BENCHMARK"
         title="Evaluation"
-        description="실제 비교 실행에 저장된 수동 평가를 정확도와 처리 성능으로 분리해 해석합니다."
+        description="정답 문서와 Parser 결과를 같은 Canonical 구조로 비교해 재현 가능한 품질 지표와 95% 신뢰구간을 계산합니다."
         actions={
-          <Link className="button primary" to="/experiments/new">
-            <Icon name="flask" size={15} /> 평가할 비교 실행
-          </Link>
+          <>
+            <button
+              className="button ghost"
+              type="button"
+              disabled={recompute.isPending}
+              onClick={() => recompute.mutate()}
+            >
+              <Icon name="refresh" size={14} />
+              {recompute.isPending ? "계산 중…" : "전체 재계산"}
+            </button>
+            <Link className="button primary" to="/experiments/new">
+              <Icon name="flask" size={15} /> Benchmark 실행
+            </Link>
+          </>
         }
       />
 
-      {loading ? (
-        <div className="evaluation-loading">
-          <span />
-          <span />
-          <span />
+      {summary.isLoading ? (
+        <div className="evaluation-loading"><span /><span /><span /></div>
+      ) : summary.isError ? (
+        <div className="error-state" role="alert">
+          <Icon name="circleAlert" size={24} />
+          <h2>정량 평가 결과를 불러오지 못했습니다</h2>
+          <p>{summary.error.message}</p>
         </div>
-      ) : evaluated.length ? (
+      ) : (
         <>
-          <section className="evaluation-overview">
+          <section className="evaluation-overview quantitative-overview">
             <article className="evaluation-lead">
-              <span className="eyebrow">EVALUATED SAMPLE SET</span>
+              <span className="eyebrow">VERSIONED SAMPLE SET</span>
               <div className="evaluation-lead-metric">
-                <strong>{evaluated.length}</strong>
+                <strong>{data?.evaluated_run_count ?? 0}</strong>
                 <span>evaluated runs</span>
               </div>
               <p>
-                {new Set(evaluated.map((run) => run.document)).size}개 문서 ·{" "}
-                {new Set(evaluated.map((run) => run.parser_name)).size}개 Parser
+                Ground Truth {data?.ground_truth_document_count ?? 0}개 · Parser{" "}
+                {data?.parsers.length ?? 0}개
               </p>
               <div className="evaluation-meta">
-                <span><Icon name="check" size={13} /> 실제 저장 평가만 집계</span>
-                <span><Icon name="activity" size={13} /> 5점 척도</span>
+                <span><Icon name="check" size={13} /> evaluator v{data?.evaluator_version}</span>
+                <span><Icon name="activity" size={13} /> 95% confidence interval</span>
+              </div>
+              <div className="dataset-tags">
+                {(data?.dataset_versions ?? []).map((version) => (
+                  <span key={version}>{version}</span>
+                ))}
               </div>
             </article>
-            <article className="score-card">
+            <article className="score-card metric-catalog">
               <header>
                 <div>
-                  <span className="eyebrow">QUALITY DIMENSIONS</span>
-                  <h2>평균 평가 점수</h2>
+                  <span className="eyebrow">FORMAL METRICS</span>
+                  <h2>품질 차원</h2>
                 </div>
-                <span className="score-scale">0 — 5</span>
+                <span className="score-scale">0 — 100%</span>
               </header>
-              <div className="score-list">
-                {scores.map((metric) => {
-                  const label = {
-                    text_score: "Text quality",
-                    table_score: "Table structure",
-                    reading_order_score: "Reading order",
-                    deidentification_score: "PII masking",
-                  }[metric.key];
-                  return (
-                    <div className="score-row" key={metric.key}>
-                      <span title={metricDefinitions[metric.key]}>
-                        {label} <Icon name="info" size={12} />
-                      </span>
-                      <div className="score-track">
-                        <i style={{ width: `${((metric.value ?? 0) / 5) * 100}%` }} />
-                      </div>
-                      <strong>{metric.value?.toFixed(1) ?? "—"}</strong>
-                    </div>
-                  );
-                })}
-              </div>
-            </article>
-          </section>
-
-          <section className="evaluation-grid">
-            <article className="benchmark-panel">
-              <header className="panel-header">
-                <div>
-                  <span className="eyebrow">PARSER BENCHMARK</span>
-                  <h2>품질 비교</h2>
-                </div>
-                <span>수동 평가 평균</span>
-              </header>
-              <div className="parser-benchmark">
-                {byParser.map((parser, index) => (
-                  <div className="benchmark-row" key={parser.name}>
-                    <span className="benchmark-rank">{String(index + 1).padStart(2, "0")}</span>
-                    <div>
-                      <strong>{parser.name}</strong>
-                      <small>{parser.runs.length} evaluated runs</small>
-                    </div>
-                    <div className="benchmark-track">
-                      <i style={{ width: `${((parser.score ?? 0) / 5) * 100}%` }} />
-                    </div>
-                    <strong>{parser.score?.toFixed(2) ?? "—"}</strong>
-                    {index === 0 && <span className="best-label">BEST</span>}
+              <div className="metric-definition-grid">
+                {qualityMetrics.slice(1).map((metric) => (
+                  <div key={metric.key}>
+                    <strong>{metric.label}</strong>
+                    <span>{metric.description}</span>
                   </div>
                 ))}
               </div>
             </article>
-            <article className="latency-panel">
-              <header className="panel-header">
-                <div>
-                  <span className="eyebrow">PERFORMANCE</span>
-                  <h2>평균 처리 시간</h2>
-                </div>
-                <span>낮을수록 빠름</span>
-              </header>
-              <div className="latency-list">
-                {byParser
-                  .filter((parser) => parser.latency !== null)
-                  .sort((left, right) => (left.latency ?? 0) - (right.latency ?? 0))
-                  .map((parser) => (
-                    <div key={parser.name}>
-                      <span>{parser.name}</span>
-                      <strong>{formatDuration(parser.latency)}</strong>
-                    </div>
-                  ))}
-              </div>
-              <p className="panel-note">
-                정확도 점수와 latency는 서로 다른 척도이므로 같은 축에 혼합하지 않습니다.
-              </p>
-            </article>
           </section>
 
-          <section className="workspace-panel evaluation-runs">
+          <section className="workspace-panel ground-truth-panel">
             <div className="panel-header">
               <div>
-                <span className="eyebrow">RECENT REVIEWS</span>
-                <h2>평가 실행</h2>
+                <span className="eyebrow">REFERENCE DATA</span>
+                <h2>Ground Truth 등록</h2>
               </div>
-              <span>{evaluated.length} results</span>
+              <span>Canonical JSON · 최대 25 MB</span>
             </div>
-            <div className="evaluation-table">
-              <div className="evaluation-table-head">
-                <span>Experiment</span>
-                <span>Parser</span>
-                <span>Text</span>
-                <span>Table</span>
-                <span>Order</span>
-                <span>PII</span>
-                <span>Latency</span>
-                <span />
-              </div>
-              {evaluated.map((run) => (
-                <div className="evaluation-table-row" key={run.run_id}>
-                  <div>
-                    <strong>{run.experimentName}</strong>
-                    <span title={run.document}>{run.document}</span>
-                  </div>
-                  <span className="mono">{run.parser_name}</span>
-                  <Score value={run.evaluation?.text_score} />
-                  <Score value={run.evaluation?.table_score} />
-                  <Score value={run.evaluation?.reading_order_score} />
-                  <Score value={run.evaluation?.deidentification_score} />
-                  <span>{formatDuration(run.metrics.latency_ms)}</span>
-                  <Link
-                    className="icon-button"
-                    to={`/experiments/${run.experimentId}/compare`}
-                    aria-label={`${run.experimentName} 비교 열기`}
-                  >
-                    <Icon name="arrowRight" size={14} />
-                  </Link>
+            <form onSubmit={submitGroundTruth}>
+              <label>
+                대상 문서
+                <select
+                  required
+                  value={documentId}
+                  onChange={(event) => setDocumentId(event.target.value)}
+                >
+                  <option value="">문서를 선택하세요</option>
+                  {(documents.data ?? []).map((document) => (
+                    <option value={document.id} key={document.id}>
+                      {document.original_filename}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Dataset
+                <input
+                  required
+                  value={datasetName}
+                  onChange={(event) => setDatasetName(event.target.value)}
+                />
+              </label>
+              <label>
+                Version
+                <input
+                  required
+                  value={datasetVersion}
+                  onChange={(event) => setDatasetVersion(event.target.value)}
+                />
+              </label>
+              <label className="ground-truth-file">
+                정답 JSON
+                <input
+                  required
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={(event) => setGroundTruthFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+              <button className="button primary" type="submit" disabled={upload.isPending}>
+                <Icon name="upload" size={14} />
+                {upload.isPending ? "검증·평가 중…" : "등록 후 자동 평가"}
+              </button>
+            </form>
+            {(upload.isError || recompute.isError) && (
+              <p className="form-error">
+                {(upload.error ?? recompute.error)?.message}
+              </p>
+            )}
+            <div className="ground-truth-list">
+              {(groundTruths.data ?? []).map((truth) => (
+                <div key={truth.id}>
+                  <strong>{truth.document_filename}</strong>
+                  <span>{truth.dataset_name}@{truth.dataset_version}</span>
+                  <small>schema {truth.schema_version} · {formatDate(truth.updated_at)}</small>
                 </div>
               ))}
             </div>
           </section>
+
+          {data?.parsers.length ? (
+            <>
+              <section className="workspace-panel benchmark-matrix-panel">
+                <div className="panel-header">
+                  <div>
+                    <span className="eyebrow">PARSER × METRIC</span>
+                    <h2>정량 품질 비교</h2>
+                  </div>
+                  <span>버전·설정별 별도 집계</span>
+                </div>
+                <div className="benchmark-matrix">
+                  <div className="benchmark-matrix-head">
+                    <span>Parser</span>
+                    {qualityMetrics.map((metric) => <span key={metric.key}>{metric.short}</span>)}
+                    <span>p95</span>
+                  </div>
+                  {data.parsers.map((parser, index) => (
+                    <div className="benchmark-matrix-row" key={parser.parser_key}>
+                      <div>
+                        <span className="benchmark-rank">{String(index + 1).padStart(2, "0")}</span>
+                        <div>
+                          <strong>{parser.parser_name}</strong>
+                          <small>
+                            {parser.parser_version ?? "default"} · cfg {parser.config_hash} · n=
+                            {parser.run_count}
+                          </small>
+                        </div>
+                      </div>
+                      {qualityMetrics.map((metric) => {
+                        const value = parser.metrics[metric.key];
+                        return (
+                          <span
+                            className={metric.key === "overall_quality" ? "primary-metric" : ""}
+                            key={metric.key}
+                            title={`${metric.description} · ${confidence(value)}`}
+                          >
+                            <strong>{percentage(value?.value)}</strong>
+                            <small>{value?.sample_count ? `n=${value.sample_count}` : "N/A"}</small>
+                          </span>
+                        );
+                      })}
+                      <span>
+                        <strong>{formatDuration(parser.latency_p95_ms)}</strong>
+                        <small>
+                          {parser.pages_per_minute
+                            ? `${parser.pages_per_minute.toFixed(1)} pages/min`
+                            : "—"}
+                        </small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="workspace-panel evaluation-runs quantitative-runs">
+                <div className="panel-header">
+                  <div>
+                    <span className="eyebrow">DOCUMENT-LEVEL RESULTS</span>
+                    <h2>최근 자동 평가</h2>
+                  </div>
+                  <span>{data.recent_results.length} results</span>
+                </div>
+                <div className="evaluation-table">
+                  <div className="evaluation-table-head">
+                    <span>Experiment</span>
+                    <span>Parser</span>
+                    <span>Overall</span>
+                    <span>Text</span>
+                    <span>Layout</span>
+                    <span>Table</span>
+                    <span>Order</span>
+                    <span />
+                  </div>
+                  {data.recent_results.map((result) => (
+                    <div className="evaluation-table-row" key={result.run_id}>
+                      <div>
+                        <strong>{result.experiment_name}</strong>
+                        <span title={result.document_filename}>{result.document_filename}</span>
+                      </div>
+                      <span className="mono">
+                        {result.parser_name}
+                        <small>{result.parser_version ?? "default"}</small>
+                      </span>
+                      <Metric value={result.metrics.overall_quality} />
+                      <Metric value={result.metrics.text_accuracy} />
+                      <Metric value={result.metrics.layout_f1_iou50} />
+                      <Metric value={result.metrics.table_teds} />
+                      <Metric value={result.metrics.reading_order_accuracy} />
+                      <Link
+                        className="icon-button"
+                        to={`/experiments/${result.experiment_id}/compare`}
+                        aria-label={`${result.experiment_name} 비교 열기`}
+                      >
+                        <Icon name="arrowRight" size={14} />
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </>
+          ) : (
+            <EmptyState
+              icon="evaluation"
+              title="정량 평가 결과가 없습니다"
+              description="위에서 문서별 Canonical Ground Truth를 등록하면 이미 완료된 Run을 즉시 재평가하고 이후 실행도 자동 평가합니다."
+              action={<Link className="button primary" to="/experiments/new">Benchmark 실행 만들기</Link>}
+            />
+          )}
         </>
-      ) : (
-        <EmptyState
-          icon="evaluation"
-          title="저장된 평가가 없습니다"
-          description="완료된 비교에서 Parser 결과를 검토하고 본문, 표, 읽기 순서, 비식별화 점수를 저장하면 여기에 집계됩니다."
-          action={
-            eligible[0] ? (
-              <Link className="button primary" to={`/experiments/${eligible[0].id}/compare`}>
-                최근 비교 평가하기
-              </Link>
-            ) : (
-              <Link className="button primary" to="/experiments/new">비교 실행 만들기</Link>
-            )
-          }
-        />
       )}
     </>
   );
 }
 
-function Score({ value }: { value: number | null | undefined }) {
-  return <span className={`evaluation-score ${value === 5 ? "best" : ""}`}>{value ?? "—"}</span>;
+function Metric({ value }: { value: number | null | undefined }) {
+  return (
+    <span className={`evaluation-score ${typeof value === "number" && value >= 0.95 ? "best" : ""}`}>
+      {percentage(value)}
+    </span>
+  );
 }

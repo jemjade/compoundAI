@@ -12,7 +12,7 @@ from app.db.models.experiment import Experiment, ExperimentRun
 from app.db.models.result import DeidentificationResult, RunResult
 from app.db.session import async_session_factory
 from app.schemas.experiment import RunSummary
-from app.schemas.result import DeidentificationSummary
+from app.schemas.result import ArtifactSummary, DeidentificationSummary
 from app.services.experiment_service import ExperimentService
 from app.task_manager.manager import TaskManager
 
@@ -38,24 +38,23 @@ async def owned_run(run_id: UUID, user_id: UUID, session: SessionDep) -> Experim
 async def get_run(run_id: UUID, user: CurrentUser, session: SessionDep) -> RunSummary:
     run = await owned_run(run_id, user.id, session)
     summary = RunSummary.model_validate(run)
+    parser_result = await session.scalar(select(RunResult).where(RunResult.run_id == run.id))
+    updates = {"artifacts": parser_result.artifact_manifest if parser_result else []}
     result = await session.scalar(
         select(DeidentificationResult).where(DeidentificationResult.run_id == run.id)
     )
     if result is None:
-        return summary
-    return summary.model_copy(
-        update={
-            "deidentification": DeidentificationSummary(
-                provider=result.provider,
-                input_type=result.input_type,
-                detected_entity_count=result.detected_entity_count,
-                masked_entity_count=result.masked_entity_count,
-                masked_file_available=result.masked_file_path is not None,
-                latency_ms=result.metrics.get("pipeline_latency_ms"),
-                error_message=result.error_message,
-            )
-        }
+        return summary.model_copy(update=updates)
+    updates["deidentification"] = DeidentificationSummary(
+        provider=result.provider,
+        input_type=result.input_type,
+        detected_entity_count=result.detected_entity_count,
+        masked_entity_count=result.masked_entity_count,
+        masked_file_available=result.masked_file_path is not None,
+        latency_ms=result.metrics.get("pipeline_latency_ms"),
+        error_message=result.error_message,
     )
+    return summary.model_copy(update=updates)
 
 
 @router.post("/{run_id}/retry", response_model=RunSummary)
@@ -86,6 +85,46 @@ async def cancel_run(
         run_id, user.id
     )
     return RunSummary.model_validate(run)
+
+
+@router.get("/{run_id}/artifacts", response_model=list[ArtifactSummary])
+async def list_artifacts(
+    run_id: UUID,
+    user: CurrentUser,
+    session: SessionDep,
+) -> list[ArtifactSummary]:
+    await owned_run(run_id, user.id, session)
+    result = await session.scalar(select(RunResult).where(RunResult.run_id == run_id))
+    return [
+        ArtifactSummary.model_validate(item)
+        for item in (result.artifact_manifest if result else [])
+    ]
+
+
+@router.get("/{run_id}/artifacts/download", response_class=FileResponse)
+async def download_vendor_artifact(
+    run_id: UUID,
+    name: str,
+    user: CurrentUser,
+    session: SessionDep,
+    storage: StorageDep,
+) -> FileResponse:
+    await owned_run(run_id, user.id, session)
+    result = await session.scalar(select(RunResult).where(RunResult.run_id == run_id))
+    selected = next(
+        (item for item in (result.artifact_manifest if result else []) if item.get("name") == name),
+        None,
+    )
+    if selected is None:
+        raise AppError("ARTIFACT_NOT_FOUND", "Vendor artifact is not available.", 404)
+    path = storage.resolve(str(selected["path"]))
+    if not path.is_file():
+        raise AppError("ARTIFACT_NOT_FOUND", "Vendor artifact file is missing.", 404)
+    return FileResponse(
+        path,
+        media_type=str(selected.get("media_type") or "application/octet-stream"),
+        filename=path.name,
+    )
 
 
 @router.get("/{run_id}/{artifact}", response_class=FileResponse)

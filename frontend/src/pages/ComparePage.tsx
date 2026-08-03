@@ -13,6 +13,7 @@ import {
   downloadArtifact,
   downloadComparisonCsv,
   downloadDocument,
+  downloadVendorArtifact,
 } from "../lib/api";
 import { formatBytes, formatDuration } from "../lib/format";
 import type {
@@ -37,7 +38,7 @@ const modes: Array<{ value: ViewMode; label: string }> = [
   { value: "rendered", label: "Rendered" },
   { value: "text", label: "Text" },
   { value: "markdown", label: "Markdown source" },
-  { value: "canonical", label: "Raw JSON" },
+  { value: "canonical", label: "Canonical JSON" },
   { value: "tables", label: "Tables" },
   { value: "deidentified", label: "Deidentified" },
   { value: "diff", label: "Diff" },
@@ -320,6 +321,18 @@ export function ComparePage() {
                       <Icon name="download" size={13} />
                       {mode === "rendered" ? "markdown" : mode === "tables" ? "canonical" : mode}
                     </button>
+                    {run.artifacts
+                      .filter((artifact) => !artifact.archive_entry)
+                      .map((artifact) => (
+                        <button
+                          key={artifact.name}
+                          title={`${artifact.source} · ${formatBytes(artifact.size_bytes)}`}
+                          onClick={() => downloadVendorArtifact(run.run_id, artifact.name)}
+                        >
+                          <Icon name="download" size={13} />
+                          vendor/{artifact.name}
+                        </button>
+                      ))}
                   </div>
                   <EvaluationEditor
                     key={`${run.run_id}-${run.evaluation?.id ?? "new"}-${run.evaluation?.is_preferred}`}

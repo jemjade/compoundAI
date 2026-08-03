@@ -1,5 +1,7 @@
 """범용 및 사이냅 HTTP Parser Adapter 동작을 검증한다."""
 
+import io
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlparse
@@ -286,6 +288,31 @@ class FakeSynapChatClient(FakeSynapClient):
         return await super().post(url, **kwargs)
 
 
+class FakeSynapArchiveClient(FakeSynapClient):
+    async def post(self, url: str, **kwargs: object) -> httpx.Response:
+        path = urlparse(url).path
+        if path == "/result/synap-fid":
+            body = kwargs["json"]
+            assert isinstance(body, dict)
+            assert body == {"api_key": "synap-secret", "type": "zip"}
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w") as archive:
+                archive.writestr(
+                    "pages/page-0001.json",
+                    '{"text":"ZIP 페이지","blocks":[{"type":"paragraph","text":"ZIP 페이지"}]}',
+                )
+                archive.writestr("output.md", "# ZIP 페이지")
+                archive.writestr("output.xml", "<document>ZIP 페이지</document>")
+                archive.writestr("output.tex", r"\section{ZIP 페이지}")
+            return httpx.Response(
+                200,
+                content=buffer.getvalue(),
+                headers={"content-type": "application/zip"},
+                request=httpx.Request("POST", url),
+            )
+        return await super().post(url, **kwargs)
+
+
 class RejectingSynapClient(FakeSynapClient):
     async def post(self, url: str, **kwargs: object) -> httpx.Response:
         if urlparse(url).path == "/da":
@@ -429,6 +456,16 @@ async def test_synap_http_adapter_uses_structured_normalizer(
     assert result.metrics["poll_count"] == 2
     assert result.metrics["page_requests"] == 2
     assert result.metrics["cleanup_succeeded"] is True
+    assert [artifact.name for artifact in result.artifacts] == [
+        "pages/page-0001.json",
+        "pages/page-0002.json",
+        "synap-results.zip",
+    ]
+    with zipfile.ZipFile(io.BytesIO(result.artifacts[-1].content or b"")) as archive:
+        assert archive.namelist() == [
+            "pages/page-0001.json",
+            "pages/page-0002.json",
+        ]
     assert canonical.full_text == "1 페이지\n\n2 페이지"
     assert [page.page_number for page in canonical.pages] == [1, 2]
     assert FakeSynapClient.calls == [
@@ -469,6 +506,46 @@ async def test_synap_http_adapter_extracts_chat_contents(
     assert result.text == "첫 번째 문장\n\n두 번째 문장"
     assert canonical.full_text == "첫 번째 문장\n\n두 번째 문장"
     assert canonical.pages[0].blocks[0].text == "첫 번째 문장\n두 번째 문장"
+
+
+async def test_synap_http_adapter_preserves_zip_and_normalizes_json_entry(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    FakeSynapArchiveClient.calls = []
+    FakeSynapArchiveClient.status_calls = 0
+    monkeypatch.setattr(httpx, "AsyncClient", FakeSynapArchiveClient)
+    monkeypatch.setattr(
+        "app.adapters.parsers.synap_http.get_settings",
+        lambda: SimpleNamespace(synap_api_key="synap-secret"),
+    )
+    connector = SimpleNamespace(
+        name="Synap",
+        model_version="2025.11",
+        base_url="http://synap.internal",
+        timeout_seconds=5,
+        default_config={},
+    )
+    source = tmp_path / "sample.pdf"
+    source.write_bytes(b"%PDF")
+    adapter = SynapHttpAdapter(connector)
+
+    result = await adapter.parse(
+        source,
+        tmp_path,
+        {
+            "use_image_ocr": True,
+            "result_delivery": "archive",
+            "archive_result_type": "zip",
+        },
+    )
+    canonical = await adapter.normalize(result, "document", "run")
+
+    assert result.text == "ZIP 페이지"
+    assert result.artifacts[0].name == "synap-result.zip"
+    assert result.artifacts[0].media_type == "application/zip"
+    assert canonical.full_text == "ZIP 페이지"
+    assert canonical.pages[0].blocks[0].text == "ZIP 페이지"
 
 
 async def test_synap_http_adapter_requires_api_key(tmp_path: Path, monkeypatch) -> None:

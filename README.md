@@ -5,6 +5,7 @@ ParseLab은 동일한 문서를 여러 Parser Adapter로 처리하고 원본 결
 텍스트와 Markdown을 나란히 비교하는 내부 테스트 플랫폼입니다.
 
 
+
 ## 한눈에 보는 프로젝트 설계
 
 ParseLab의 핵심 아이디어는 간단합니다.
@@ -507,7 +508,9 @@ User
 │     └─ ExperimentRun
 │        ├─ RunResult
 │        ├─ DeidentificationResult
-│        └─ ManualEvaluation
+│        ├─ ManualEvaluation
+│        └─ AutomatedEvaluation
+├─ GroundTruth
 └─ ParserConnector
    └─ ParserPreset
 ```
@@ -523,6 +526,8 @@ User
 | `run_results` | Parser 결과 요약 | Artifact 경로, Page·Block·Table 지표 |
 | `deidentification_results` | 비식별화 결과 요약 | Provider, 입력 종류, 마스킹 수 |
 | `manual_evaluations` | 사용자 수동 평가 | Run·평가자 Unique, 점수 1~5 Check |
+| `ground_truths` | 문서별 정답 Dataset | Document Unique, Dataset·Schema Version, 정답 경로 |
+| `automated_evaluations` | 재현 가능한 자동 평가 | Run Unique, Evaluator Version, 지표·모수·진단값 |
 
 모든 주요 PK는 UUID입니다. 외부 API에 순차 정수 ID를 노출하지 않고 여러 생성
 주체에서 충돌 없이 ID를 만들기 쉽다는 장점이 있습니다. 다만 UUID Index 크기와
@@ -557,8 +562,9 @@ Alembic이 안정적인 Constraint 이름을 만들 수 있도록 Naming Convent
 | 사용자와 소유권 | 원본 문서 |
 | 상태와 오류 코드 | Parser Raw 결과 |
 | 실행 시간과 개수 지표 | Canonical JSON |
-| Artifact 상대 경로 | Markdown과 Text |
-| 수동 평가 | 비식별화 결과와 오류 로그 |
+| Artifact Manifest와 상대 경로 | Markdown과 Text |
+| 수동·자동 평가와 Dataset Version | Parser 원본 ZIP·추출 파일 |
+|  | Ground Truth와 비식별화 결과·오류 로그 |
 
 DB와 파일 저장소를 함께 사용하는 구조에는 원자성 문제가 있습니다. 파일 저장은
 성공했지만 DB Commit이 실패하거나 그 반대가 발생할 수 있습니다. 현재 MVP는
@@ -631,6 +637,57 @@ Parser별 특수 필드를 Canonical 최상위에 계속 추가하는 것은 피
 있으면 Schema Version을 올려 정식 필드로 설계하고, Parser 전용 정보는
 `metadata` 또는 Block의 `attributes`에 둡니다.
 
+## Ground Truth 자동 평가
+
+수동 1~5점은 최종 사용성 판단에 남겨 두되 Parser 품질 비교의 주 지표로 사용하지
+않습니다. Evaluation 화면은 문서별 Canonical JSON Ground Truth와 완료 Run을
+Evaluator Version `1.0.0` 규약으로 비교합니다.
+
+| 차원 | 지표 | 계산 규약 |
+|---|---|---|
+| 본문 | CER, Text Accuracy, Exact Match | NFKC·공백 정규화 후 Unicode 문자 편집 거리 |
+| 레이아웃 | Precision/Recall/F1@IoU 0.5, Mean IoU | 같은 Page·Block Type의 Bounding Box를 일대일 매칭 |
+| 표 | TEDS-style, Structure F1, Cell Content Accuracy | Row/Cell/Span Ordered Tree와 좌표 Cell 집합 비교 |
+| 읽기 순서 | Order Accuracy, Coverage | 매칭된 Block 순서의 역전쌍과 매칭 비율 |
+| 수식 | Formula Accuracy, Exact Match | 정규화한 LaTeX 또는 Formula Text 편집 거리 |
+| 비식별화 | PII Span Precision/Recall/F1 | `(type, start, end)` Exact Span 매칭, Leakage·Overmask 비율 |
+
+`overall_quality`는 해당 문서에서 실제 측정 가능한 품질 차원의 동일 가중 평균입니다.
+Parser 비교표는 이름·모델 Version·Config Hash별로 분리하고 문서 단위 점수의 평균과
+Student-t 95% 신뢰구간을 보여 줍니다. 표본이 하나이면 평균만 표시하고 신뢰구간은
+표본 추가가 필요하다고 표시합니다. 속도는 p50/p95 Latency와 전체 Page/분으로
+별도 표시하여 품질 점수와 섞지 않습니다.
+
+Ground Truth JSON의 최소 계약은 다음과 같습니다.
+
+```json
+{
+  "full_text": "정답 본문",
+  "pages": [
+    {
+      "page_number": 1,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "reading_order": 0,
+          "text": "정답 본문",
+          "bbox": {"x1": 0, "y1": 0, "x2": 100, "y2": 20}
+        }
+      ]
+    }
+  ],
+  "pii_entities": [
+    {"type": "RRN", "start": 10, "end": 24}
+  ]
+}
+```
+
+표·레이아웃·수식·PII Annotation이 없는 문서는 해당 지표를 `N/A`로 두므로 “정답이
+없는데 100점”으로 계산하지 않습니다. Ground Truth를 등록하면 같은 문서의 기존
+성공 Run을 즉시 재계산하고, 이후 Run은 Parsing과 비식별화 완료 시 자동 평가합니다.
+평가 장애는 Savepoint 안에서 격리되어 성공한 Parser 결과 상태를 실패로 바꾸지
+않습니다.
+
 ## 보안 설계와 운영 전 보강점
 
 현재 구현된 방어:
@@ -699,13 +756,20 @@ Token 회전, `HttpOnly`·`Secure` Cookie 사용을 검토해야 합니다.
 | Run | `GET /runs/{id}` | Run 상태 |
 | Run | `POST /runs/{id}/retry` | 실패·중단 단계 재실행 |
 | Run | `POST /runs/{id}/cancel` | 대기·실행 작업 취소 |
-| Artifact | `GET /runs/{id}/raw` | 원본 Parser JSON |
+| Artifact | `GET /runs/{id}/raw` | ParseLab 실행 Envelope JSON |
 | Artifact | `GET /runs/{id}/canonical` | Canonical JSON |
 | Artifact | `GET /runs/{id}/markdown` | Markdown |
 | Artifact | `GET /runs/{id}/text` | Text |
 | Artifact | `GET /runs/{id}/deidentified` | 비식별화 JSON |
+| Artifact | `GET /runs/{id}/artifacts` | Parser 원본·ZIP Manifest |
+| Artifact | `GET /runs/{id}/artifacts/download?name=...` | Manifest의 개별 산출물 |
 | 평가 | `GET /runs/{id}/evaluation` | 내 수동 평가 |
 | 평가 | `PUT /runs/{id}/evaluation` | 평가 생성 또는 전체 갱신 |
+| Benchmark | `GET /benchmarks/summary` | Parser·Version·Config별 자동 평가 집계 |
+| Benchmark | `POST /benchmarks/recompute` | 내 성공 Run 전체 재계산 |
+| Benchmark | `GET /benchmarks/ground-truths` | 내 Ground Truth 목록 |
+| Benchmark | `PUT /benchmarks/documents/{id}/ground-truth` | Canonical JSON 정답 등록·갱신 |
+| Benchmark | `GET /benchmarks/runs/{id}` | Run 자동 평가 원시 지표·모수 |
 
 실행 중인 서버의 정확한 Schema는 Swagger UI
 <http://localhost:8000/docs>와 OpenAPI JSON
@@ -720,7 +784,8 @@ Token 회전, `HttpOnly`·`Secure` Cookie 사용을 검토해야 합니다.
 |---|---|---|
 | 단위 테스트 | 순수 규칙과 Adapter 경계 | Config 병합, 상태 계산, Text Diff |
 | Adapter 테스트 | 외부 연동 계약 | HTTP 성공·Timeout, Command 허용 목록 |
-| Storage 테스트 | 경로와 Artifact | 경로 이탈 차단, 결과 저장 |
+| Storage 테스트 | 경로와 Artifact | 경로 이탈·ZIP Bomb·Symlink 차단, 원본 보존 |
+| Metric 테스트 | 정량 평가 규약 | 완전 일치, Text·Table·Order·PII 오류 분리 |
 | TaskManager 테스트 | 동시성·취소 | Semaphore, Registry 정리 |
 | 통합 테스트 | 계층을 통과하는 전체 흐름 | 가입부터 CSV 다운로드까지 |
 
@@ -751,7 +816,8 @@ Test Suite로 확장하려면 Docker 기반 PostgreSQL 통합 테스트도 별�
 - WebSocket 또는 Server-Sent Events
 - Parser Worker의 별도 배포와 자원 Scheduling
 - 완전한 Audit Log와 관측 가능성 Stack
-- Ground Truth 기반 자동 품질 점수
+- OmniDocBench 같은 공개 Dataset 전용 Importer와 Annotation UI
+- Bootstrap 신뢰구간·통계적 유의성 검정·Regression 승인 Gate
 
 전문가의 중요한 능력은 모든 기술을 넣는 것이 아니라 현재 요구사항에 필요한
 복잡도만 선택하고, 확장 시 깨지는 경계를 명확히 기록하는 것입니다.
@@ -1002,6 +1068,45 @@ Access Token을 지정하면 자동 로그인보다 우선하며, `401` 자동 �
 `FASOO_RULE_JSON`에 `rule` 객체 전체를 JSON 한 줄로 설정하면 개별 Pattern/Label
 환경변수보다 우선 적용됩니다.
 
+### Synap DocuAnalyzer 결과 형식
+
+기존 Adapter는 `POST /result/{fid}`에 `page_index`와 `type=json`을 보내 Page JSON만
+받은 뒤 Canonical JSON으로 재구성했습니다. 그래서 제품 UI에서 보이는 ZIP,
+Markdown, XML, LaTeX가 ParseLab에 남지 않았고 `raw.json`도 Synap 원본 파일이 아니라
+여러 Page 응답을 합친 내부 Envelope였습니다.
+
+이제 Page JSON 응답은 `runs/{run_id}/vendor/pages/`에 그대로 보존하고
+`synap-results.zip`으로도 묶습니다. 설치된 Synap REST API가 ZIP을 직접 반환하는
+계약이면 `result_delivery=archive`를 사용해 서버 ZIP 원본을 그대로 저장합니다.
+ZIP은 원본을 먼저 보존한 뒤 파일 수 2,000개·해제 크기 512 MB 제한, 경로 이탈,
+암호화 Entry, Symbolic Link 검사를 거쳐 `vendor/extracted/`에 안전하게 풉니다.
+
+```json
+{
+  "use_image_ocr": false,
+  "poll_interval_seconds": 0.5,
+  "result_delivery": "pages",
+  "artifact_result_types": ["markdown", "xml", "latex"],
+  "bundle_results": true
+}
+```
+
+- `pages`: Page별 JSON을 정규화 기준으로 사용하고, 지정한 추가 형식을 Page별로
+  요청합니다. `synap-results.zip`은 ParseLab이 다운로드 편의를 위해 생성한
+  Bundle이며 `source=parselab_synap_bundle`로 구분됩니다.
+- `archive`: `archive_result_type` 기본값 `zip`으로 결과를 한 번 요청하고 ZIP 내부
+  JSON을 Canonical 정규화 기준으로 사용합니다. 이는 해당 설치본의 REST 계약이
+  전체 결과 ZIP을 지원할 때 선택합니다.
+- `artifact_result_types`: `json`, `xml`, `markdown`, `latex`, `zip`을 허용합니다.
+  기본값은 빈 배열이며 Page JSON은 이 설정과 무관하게 항상 보존합니다. LaTeX REST
+  출력은 Synap DocuAnalyzer v2025.11 이상인지 설치본 Manual과 `/docs`에서 확인해야
+  합니다.
+- `bundle_results=false`: ParseLab 생성 ZIP만 끄고 개별 원본 응답은 계속 보존합니다.
+
+`canonical.json`, `output.md`, `output.txt`는 Parser 간 비교와 후속 RAG 처리를 위한
+공통 형식입니다. `vendor/` 아래 파일은 원본 응답 확인·장애 분석·재현을 위한 형식이므로
+둘을 같은 의미의 “Raw JSON”으로 보지 않습니다.
+
 ### PaddleOCR PP-StructureV3
 
 PP-StructureV3는 기본 이미지에 포함되지 않는 선택 기능입니다. CPU 환경의 로컬
@@ -1213,22 +1318,31 @@ uv run alembic upgrade head
    실행 여부를 설정합니다.
 4. 생성 API는 DB에 Experiment/Run을 저장하고 즉시 반환합니다.
 5. In-Process Task Manager가 파싱 후 선택적으로 비식별화를 실행합니다.
-6. Experiment Detail에서 파싱·비식별화 상태와 Artifact를 각각 확인합니다.
+6. Experiment Detail에서 파싱·비식별화 상태와 Canonical·Vendor Artifact를 확인합니다.
 7. 완료 후 결과 비교 화면에서 Text/Markdown/JSON/Tables/Deidentified를 나란히
    보고 Text Diff를 계산합니다.
-8. Run별 점수·메모·선호 결과를 저장하고 비교 결과를 CSV로 내려받습니다.
+8. Evaluation에서 Canonical Ground Truth를 등록해 자동 품질 지표와 신뢰구간을
+   확인하고, 필요하면 Run별 수동 점수·메모·선호 결과도 저장합니다.
 
 결과 파일 구조:
 
 ```text
 data/
 ├── documents/{document_id}/original.{ext}
+├── ground-truths/{document_id}/canonical.json
 └── runs/{run_id}/
     ├── raw.json
     ├── canonical.json
     ├── output.md
     ├── output.txt
-    └── deidentified.json
+    ├── deidentified.json
+    └── vendor/
+        ├── synap-results.zip
+        ├── pages/page-0001.json
+        ├── markdown/page-0001.md
+        ├── xml/page-0001.xml
+        ├── latex/page-0001.tex
+        └── extracted/...
 ```
 
 ## API 예시
@@ -1309,6 +1423,21 @@ curl -G -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/experiments/EXPERIMENT_UUID/text-diff
 ```
 
+Ground Truth 등록과 자동 평가 집계:
+
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -F 'file=@ground-truth.json;type=application/json' \
+  -F 'dataset_name=internal-golden' \
+  -F 'dataset_version=1.0' \
+  -F 'schema_version=1.0' \
+  http://localhost:8000/api/v1/benchmarks/documents/DOCUMENT_UUID/ground-truth
+
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/benchmarks/summary
+```
+
 수동 평가와 선호 Parser 지정:
 
 ```bash
@@ -1346,7 +1475,10 @@ HTTP Parser 등록 예:
   "base_url": "http://synap.internal",
   "default_config": {
     "use_image_ocr": false,
-    "poll_interval_seconds": 0.5
+    "poll_interval_seconds": 0.5,
+    "result_delivery": "pages",
+    "artifact_result_types": ["markdown", "xml", "latex"],
+    "bundle_results": true
   },
   "supported_formats": ["pdf", "docx", "pptx"],
   "timeout_seconds": 300

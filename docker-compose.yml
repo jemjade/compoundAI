@@ -21,6 +21,10 @@ services:
       context: ./backend
       args:
         INSTALL_PADDLEOCR: ${INSTALL_PADDLEOCR:-false}
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
       DATABASE_URL: postgresql+asyncpg://parselab:parselab@postgres:5432/parselab
       JWT_SECRET: local-docker-secret-change-me-please
@@ -31,6 +35,8 @@ services:
       DOCLING_BASE_URL: ${DOCLING_BASE_URL:-}
       DOCLING_API_KEY: ${DOCLING_API_KEY:-parselab-local-docling}
       MINERU_BASE_URL: ${MINERU_BASE_URL:-}
+      SYNAP_BOX_BASE_URL: ${SYNAP_BOX_BASE_URL:-}
+      SYNAP_CHAT_BASE_URL: ${SYNAP_CHAT_BASE_URL:-}
       SYNAP_API_KEY: ${SYNAP_API_KEY:-}
       PADDLEOCR_ENABLED: ${PADDLEOCR_ENABLED:-false}
       PADDLEOCR_DEVICE: ${PADDLEOCR_DEVICE:-cpu}
