@@ -4,72 +4,7 @@
 ParseLab은 동일한 문서를 여러 Parser Adapter로 처리하고 원본 결과, Canonical JSON,
 텍스트와 Markdown을 나란히 비교하는 내부 테스트 플랫폼입니다.
 
-현재 구현은 설계서의 **Phase 1~4 MVP**입니다.
 
-- 이메일/비밀번호 회원가입, 로그인, JWT 인증
-- 첫 가입자를 ADMIN으로 생성하고 내장 Mock Parser 2개 자동 등록
-- PDF, Office, TXT, Markdown 업로드와 SHA-256 계산
-- PostgreSQL에는 메타데이터·상태·지표 저장
-- 로컬 파일 시스템에는 원본·Canonical 결과와 Parser 원본 산출물·ZIP 저장
-- `asyncio.create_task()`와 Semaphore를 이용한 최대 동시 실행 수 제한
-- 서버 시작 시 `RUNNING` Run을 `INTERRUPTED`로 전환
-- 실험 생성 즉시 `202 Accepted` 응답, React에서 2초 Polling
-- Run 재실행·취소, 결과 파일 다운로드, 텍스트 Diff, 수동·자동 평가 API
-- React에서 실행 상태와 Parser 결과를 나란히 비교
-- Synap/Generic HTTP Adapter와 Docling/Generic Command Adapter
-- `shell=True` 없는 Command 실행, 허용 실행파일·Template 변수 검증
-- Parser 수정·비활성화, Config JSON Schema 검증, Preset CRUD
-- HTTP/Command Health Check, Timeout 및 표준 오류 코드, `error.log`
-- Mock Fasoo와 Fasoo HTTP 비식별화 Adapter
-- 파싱과 독립된 비식별화 상태·오류·지표 및 `deidentified.json`
-- 비식별화 실패 시 성공한 파싱 결과 유지, 실패한 비식별화만 재실행
-- React에서 원본 Text/Markdown과 비식별화 결과 전환 비교
-- 기준·대상 Run 선택과 공백 정규화를 지원하는 Text Diff
-- Canonical JSON Viewer, 표 셀·병합 구조 비교, 페이지별 텍스트 길이 지표
-- Run별 1~5점 수동 평가, 메모와 실험별 단일 선호 Parser 표시
-- 문서별 Versioned Canonical Ground Truth 등록과 완료 Run 자동 재평가
-- CER, IoU@0.5 Layout F1, TEDS-style Table, Reading Order, Formula, PII Span F1
-- Parser 버전·설정별 평균, Student-t 95% 신뢰구간, p50/p95 지연, pages/min 집계
-- Synap JSON/XML/Markdown/LaTeX 원본 응답과 ZIP 원본·안전한 압축 해제본 보존
-- 운영 지표·비식별화·평가를 포함한 UTF-8 CSV 내보내기
-
-Synap API 계약과 Docling CLI 출력의 일반적인 형태를 지원하며, 사내 실제 계약에 맞춘
-세부 매핑은 환경별 설정으로 조정할 수 있습니다. Fasoo API 계약은 요청·응답 매핑
-함수로 격리했으며 실제 엔드포인트 계약에 맞춰 조정할 수 있습니다. Ground Truth는
-내부 Canonical JSON Dataset을 지원하며 공개 Dataset Importer는 별도 확장 범위입니다.
-
-## 이 README를 활용하는 방법
-
-이 프로젝트는 FastAPI 문법을 구경하는 예제가 아니라, 작은 서비스를 실제로
-설계하고 운영할 때 필요한 개념을 한 흐름에서 학습할 수 있는 예제입니다.
-
-실제 코드를 순서대로 따라가며 학습하려면
-**[ParseLab 프로젝트 완벽 이해 가이드](docs/PROJECT_UNDERSTANDING_GUIDE.md)**를
-먼저 사용하세요. 요청 추적 순서, Breakpoint, 비식별화 상세 흐름, 실습 과제와
-이해도 점검표가 포함되어 있습니다.
-
-처음 읽는다면 다음 순서가 가장 이해하기 쉽습니다.
-
-1. 아래의 **한눈에 보는 설계**에서 전체 흐름을 파악합니다.
-2. **요청 한 건의 이동 경로**를 읽으며 Router, Dependency, Service, Repository의
-   책임을 구분합니다.
-3. 서버를 실행하고 `/docs`에서 API를 직접 호출합니다.
-4. `POST /experiments`가 `202 Accepted`를 반환한 뒤 백그라운드에서 Run을 실행하는
-   과정을 디버거로 따라갑니다.
-5. 마지막의 **FastAPI 전문가 학습 로드맵**에 있는 실습을 직접 구현합니다.
-
-
-- 요청마다 DB Session을 왜 새로 만들고 언제 닫는가?
-- `async def` 안에서 일반 파일 I/O를 그대로 호출하면 왜 위험한가?
-- 외부 API 호출 전후로 DB Commit을 어디에서 해야 하는가?
-- `201 Created`, `202 Accepted`, `204 No Content`, `409 Conflict`를 언제 쓰는가?
-- 프로세스가 재시작되면 `asyncio.create_task()`로 만든 작업은 어떻게 되는가?
-- Pydantic Schema와 SQLAlchemy Model을 왜 분리하는가?
-- 사용자가 보낸 경로, 파일명, URL, Command를 어디까지 신뢰할 수 있는가?
-
-ParseLab의 코드는 이 질문들에 대한 하나의 실용적인 답을 제공합니다. 동시에 현재
-MVP의 한계도 함께 설명하므로, “동작하는 코드”와 “운영 가능한 코드”의 차이를 학습할
-수 있습니다.
 
 ## 한눈에 보는 프로젝트 설계
 
@@ -1631,3 +1566,68 @@ frontend/src/
 ├── components/      # Layout, 상태 표시
 └── lib/             # API client, format helper
 ```
+
+
+현재 구현은 설계서의 **Phase 1~4 MVP**입니다.
+
+- 이메일/비밀번호 회원가입, 로그인, JWT 인증
+- 첫 가입자를 ADMIN으로 생성하고 내장 Mock Parser 2개 자동 등록
+- PDF, Office, TXT, Markdown 업로드와 SHA-256 계산
+- PostgreSQL에는 메타데이터·상태·지표 저장
+- 로컬 파일 시스템에는 원본·raw.json·canonical.json·Markdown·텍스트 저장
+- `asyncio.create_task()`와 Semaphore를 이용한 최대 동시 실행 수 제한
+- 서버 시작 시 `RUNNING` Run을 `INTERRUPTED`로 전환
+- 실험 생성 즉시 `202 Accepted` 응답, React에서 2초 Polling
+- Run 재실행·취소, 결과 파일 다운로드, 텍스트 Diff, 수동 평가 API
+- React에서 실행 상태와 Parser 결과를 나란히 비교
+- Synap/Generic HTTP Adapter와 Docling/Generic Command Adapter
+- `shell=True` 없는 Command 실행, 허용 실행파일·Template 변수 검증
+- Parser 수정·비활성화, Config JSON Schema 검증, Preset CRUD
+- HTTP/Command Health Check, Timeout 및 표준 오류 코드, `error.log`
+- Mock Fasoo와 Fasoo HTTP 비식별화 Adapter
+- 파싱과 독립된 비식별화 상태·오류·지표 및 `deidentified.json`
+- 비식별화 실패 시 성공한 파싱 결과 유지, 실패한 비식별화만 재실행
+- React에서 원본 Text/Markdown과 비식별화 결과 전환 비교
+- 기준·대상 Run 선택과 공백 정규화를 지원하는 Text Diff
+- Canonical JSON Viewer, 표 셀·병합 구조 비교, 페이지별 텍스트 길이 지표
+- Run별 1~5점 수동 평가, 메모와 실험별 단일 선호 Parser 표시
+- 운영 지표·비식별화·평가를 포함한 UTF-8 CSV 내보내기
+
+Synap API 계약과 Docling CLI 출력의 일반적인 형태를 지원하며, 사내 실제 계약에 맞춘
+세부 매핑은 환경별 설정으로 조정할 수 있습니다. Fasoo API 계약은 요청·응답 매핑
+함수로 격리했으며 실제 엔드포인트 계약에 맞춰 조정할 수 있습니다. MinerU와 Ground
+Truth Dataset은 MVP 이후 범위입니다.
+
+## 이 README를 활용하는 방법
+
+이 프로젝트는 FastAPI 문법을 구경하는 예제가 아니라, 작은 서비스를 실제로
+설계하고 운영할 때 필요한 개념을 한 흐름에서 학습할 수 있는 예제입니다.
+
+실제 코드를 순서대로 따라가며 학습하려면
+**[ParseLab 프로젝트 완벽 이해 가이드](docs/PROJECT_UNDERSTANDING_GUIDE.md)**를
+먼저 사용하세요. 요청 추적 순서, Breakpoint, 비식별화 상세 흐름, 실습 과제와
+이해도 점검표가 포함되어 있습니다.
+
+처음 읽는다면 다음 순서가 가장 이해하기 쉽습니다.
+
+1. 아래의 **한눈에 보는 설계**에서 전체 흐름을 파악합니다.
+2. **요청 한 건의 이동 경로**를 읽으며 Router, Dependency, Service, Repository의
+   책임을 구분합니다.
+3. 서버를 실행하고 `/docs`에서 API를 직접 호출합니다.
+4. `POST /experiments`가 `202 Accepted`를 반환한 뒤 백그라운드에서 Run을 실행하는
+   과정을 디버거로 따라갑니다.
+5. 마지막의 **FastAPI 전문가 학습 로드맵**에 있는 실습을 직접 구현합니다.
+
+
+- 요청마다 DB Session을 왜 새로 만들고 언제 닫는가?
+- `async def` 안에서 일반 파일 I/O를 그대로 호출하면 왜 위험한가?
+- 외부 API 호출 전후로 DB Commit을 어디에서 해야 하는가?
+- `201 Created`, `202 Accepted`, `204 No Content`, `409 Conflict`를 언제 쓰는가?
+- 프로세스가 재시작되면 `asyncio.create_task()`로 만든 작업은 어떻게 되는가?
+- Pydantic Schema와 SQLAlchemy Model을 왜 분리하는가?
+- 사용자가 보낸 경로, 파일명, URL, Command를 어디까지 신뢰할 수 있는가?
+
+ParseLab의 코드는 이 질문들에 대한 하나의 실용적인 답을 제공합니다. 동시에 현재
+MVP의 한계도 함께 설명하므로, “동작하는 코드”와 “운영 가능한 코드”의 차이를 학습할
+수 있습니다.
+
