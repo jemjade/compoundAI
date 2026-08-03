@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     docling_base_url: str | None = None
     docling_api_key: str | None = None
     mineru_base_url: str | None = None
+    synap_box_base_url: str | None = None
+    synap_chat_base_url: str | None = None
     synap_api_key: str | None = None
     paddleocr_enabled: bool = False
     paddleocr_device: str = "cpu"
@@ -110,6 +112,9 @@ class Settings(BaseSettings):
     @field_validator(
         "docling_base_url",
         "mineru_base_url",
+        "synap_box_base_url",
+        "synap_chat_base_url",
+        "synap_api_key",
         "fasoo_auth_url",
         "fasoo_username",
         "fasoo_password",

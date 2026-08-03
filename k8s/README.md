@@ -94,8 +94,9 @@ curl http://localhost:18000/health
 
 ## Synap Connector
 
-Synap URL은 환경변수가 아니라 Parser Connector의 `base_url`에 저장한다. 관리자
-화면에서 `synap_http` Connector를 Box와 Chat 각각 하나씩 등록한다.
+`SYNAP_BOX_BASE_URL`과 `SYNAP_CHAT_BASE_URL`이 설정되면 애플리케이션 시작 시
+`synap_http` Connector를 Box와 Chat 각각 하나씩 자동 등록한다. URL은 생성된
+Parser Connector의 `base_url`에도 저장된다.
 
 ```text
 Box:

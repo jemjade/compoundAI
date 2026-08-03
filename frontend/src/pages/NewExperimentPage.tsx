@@ -1,6 +1,6 @@
 // 문서·Parser·Preset·파수를 설정하는 단계별 실험 생성 화면이다.
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { EmptyState } from "../components/EmptyState";
 import { ApiError, api } from "../lib/api";
@@ -22,7 +22,7 @@ export function NewExperimentPage() {
   const [description, setDescription] = useState("");
   const [documentId, setDocumentId] = useState(searchParams.get("document") ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [selectionInitialized, setSelectionInitialized] = useState(false);
+  const [selectionContext, setSelectionContext] = useState("");
   const [presetByParser, setPresetByParser] = useState<Record<string, string>>({});
   const [overrideByParser, setOverrideByParser] = useState<Record<string, string>>({});
   const [runDeidentification, setRunDeidentification] = useState(true);
@@ -35,24 +35,39 @@ export function NewExperimentPage() {
     queryKey: ["parsers"],
     queryFn: () => api<Parser[]>("/parsers"),
   });
+  const selectedDocument =
+    documents.data?.find((document) => document.id === documentId) ?? null;
+  const compatibleParsers = useMemo(() => {
+    if (!selectedDocument) return [];
+    return (parsers.data ?? []).filter((parser) =>
+      parser.supported_formats.includes(selectedDocument.extension.toLowerCase()),
+    );
+  }, [parsers.data, selectedDocument]);
   const presetQueries = useQueries({
-    queries: (parsers.data ?? []).map((parser) => ({
+    queries: compatibleParsers.map((parser) => ({
       queryKey: ["parser-presets", parser.id],
       queryFn: () => api<ParserPreset[]>(`/parsers/${parser.id}/presets`),
     })),
   });
   useEffect(() => {
-    if (parsers.data?.length && !selectionInitialized) {
-      setSelected(
-        new Set(
-          mode === "single"
-            ? [parsers.data[0].id]
-            : parsers.data.map((parser) => parser.id),
-        ),
-      );
-      setSelectionInitialized(true);
+    if (!selectedDocument || !compatibleParsers.length) {
+      setSelected((current) => (current.size ? new Set() : current));
+      setSelectionContext((current) => (current ? "" : current));
+      return;
     }
-  }, [mode, parsers.data, selectionInitialized]);
+    const context = `${mode}:${selectedDocument.id}:${compatibleParsers
+      .map((parser) => parser.id)
+      .join(",")}`;
+    if (context === selectionContext) return;
+    setSelected(
+      new Set(
+        mode === "single"
+          ? [compatibleParsers[0].id]
+          : compatibleParsers.map((parser) => parser.id),
+      ),
+    );
+    setSelectionContext(context);
+  }, [compatibleParsers, mode, selectedDocument, selectionContext]);
   useEffect(() => {
     if (!documentId && documents.data?.[0]) setDocumentId(documents.data[0].id);
   }, [documentId, documents.data]);
@@ -136,6 +151,27 @@ export function NewExperimentPage() {
     );
   }
 
+  if (documents.isLoading || parsers.isLoading) {
+    return (
+      <div className="evaluation-loading" aria-label="단건 처리 설정을 불러오는 중">
+        <span /><span /><span />
+      </div>
+    );
+  }
+
+  if (documents.isError || parsers.isError) {
+    const caught = documents.error ?? parsers.error;
+    return (
+      <div className="error-state" role="alert">
+        <h2>단건 처리 설정을 불러오지 못했습니다</h2>
+        <p>{caught instanceof Error ? caught.message : "문서와 Parser 조회를 다시 시도하세요."}</p>
+        <button className="button primary" type="button" onClick={() => window.location.reload()}>
+          다시 불러오기
+        </button>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={submit}>
       <header className="page-header">
@@ -148,7 +184,10 @@ export function NewExperimentPage() {
               : "같은 문서를 여러 Parser로 처리해 결과와 성능을 비교합니다."}
           </p>
         </div>
-        <button className="button primary" disabled={create.isPending}>
+        <button
+          className="button primary"
+          disabled={create.isPending || !selectedDocument || !compatibleParsers.length}
+        >
           {create.isPending
             ? "등록 중…"
             : mode === "single"
@@ -233,8 +272,13 @@ export function NewExperimentPage() {
                 ? "Parser 1개를 선택하세요. Preset과 이번 Run 전용 Config를 설정할 수 있습니다."
                 : "Parser를 2개 이상 선택하세요. Parser별 Preset과 Config를 설정할 수 있습니다."}
             </p>
+            {selectedDocument && compatibleParsers.length === 0 && (
+              <div className="error-banner" role="alert">
+                .{selectedDocument.extension} 문서를 지원하는 활성 Parser가 없습니다.
+              </div>
+            )}
             <div className="parser-choice-grid">
-              {parsers.data?.map((parser, index) => (
+              {compatibleParsers.map((parser, index) => (
                 <div
                   className={`parser-choice-card ${selected.has(parser.id) ? "selected" : ""}`}
                   key={parser.id}

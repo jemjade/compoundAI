@@ -65,6 +65,15 @@ export type Run = {
   started_at: string | null;
   completed_at: string | null;
   deidentification: DeidentificationSummary | null;
+  artifacts: ArtifactSummary[];
+};
+
+export type ArtifactSummary = {
+  name: string;
+  media_type: string;
+  size_bytes: number;
+  source: string;
+  archive_entry: boolean;
 };
 
 export type DeidentificationSummary = {
@@ -144,6 +153,7 @@ export type ComparisonRun = {
   deidentification: DeidentificationSummary | null;
   canonical: Record<string, unknown> | unknown[] | null;
   tables: CanonicalTable[];
+  artifacts: ArtifactSummary[];
   evaluation: ManualEvaluation | null;
 };
 
@@ -160,4 +170,61 @@ export type TextDiff = {
   added_count: number;
   removed_count: number;
   diff: Array<{ type: "equal" | "added" | "removed"; text: string }>;
+};
+
+export type MetricAggregate = {
+  value: number | null;
+  ci95_low: number | null;
+  ci95_high: number | null;
+  sample_count: number;
+};
+
+export type ParserBenchmark = {
+  parser_key: string;
+  parser_name: string;
+  parser_version: string | null;
+  config_hash: string;
+  run_count: number;
+  document_count: number;
+  metrics: Record<string, MetricAggregate>;
+  latency_p50_ms: number | null;
+  latency_p95_ms: number | null;
+  pages_per_minute: number | null;
+};
+
+export type BenchmarkRunResult = {
+  run_id: string;
+  experiment_id: string;
+  experiment_name: string;
+  document_id: string;
+  document_filename: string;
+  parser_name: string;
+  parser_version: string | null;
+  dataset_name: string;
+  dataset_version: string;
+  metrics: Record<string, number | null>;
+  latency_ms: number | null;
+  created_at: string;
+};
+
+export type BenchmarkSummary = {
+  evaluator_version: string;
+  generated_at: string;
+  ground_truth_document_count: number;
+  evaluated_run_count: number;
+  dataset_versions: string[];
+  parsers: ParserBenchmark[];
+  recent_results: BenchmarkRunResult[];
+};
+
+export type GroundTruth = {
+  id: string;
+  document_id: string;
+  document_filename: string;
+  dataset_name: string;
+  dataset_version: string;
+  schema_version: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 };

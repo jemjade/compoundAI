@@ -4,8 +4,8 @@ import { Link, useParams } from "react-router";
 import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
-import { api, downloadArtifact } from "../lib/api";
-import { formatDate, formatDuration } from "../lib/format";
+import { api, downloadArtifact, downloadVendorArtifact } from "../lib/api";
+import { formatBytes, formatDate, formatDuration } from "../lib/format";
 import type { ExperimentDetail, Run } from "../types";
 
 const isTerminal = (status?: string) =>
@@ -267,6 +267,18 @@ export function ExperimentPage() {
                             )}
                           </>
                         )}
+                        {(run.artifacts ?? []).map((artifact) => (
+                          <button
+                            type="button"
+                            className="artifact-button vendor"
+                            key={artifact.name}
+                            title={`${artifact.source} · ${formatBytes(artifact.size_bytes)}`}
+                            onClick={() => downloadVendorArtifact(run.id, artifact.name)}
+                          >
+                            <Icon name="download" size={13} />
+                            {artifact.name}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>

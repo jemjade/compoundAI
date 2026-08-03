@@ -8,6 +8,14 @@ from pydantic import BaseModel, Field
 from app.schemas.evaluation import EvaluationResponse
 
 
+class ArtifactSummary(BaseModel):
+    name: str
+    media_type: str
+    size_bytes: int
+    source: str
+    archive_entry: bool = False
+
+
 class RunMetrics(BaseModel):
     latency_ms: int | None = None
     page_count: int | None = None
@@ -43,6 +51,7 @@ class ComparisonRun(BaseModel):
     deidentification: DeidentificationSummary | None = None
     canonical: dict[str, Any] | list[Any] | None = None
     tables: list[dict[str, Any]] = Field(default_factory=list)
+    artifacts: list[ArtifactSummary] = Field(default_factory=list)
     evaluation: EvaluationResponse | None = None
 
 

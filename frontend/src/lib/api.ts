@@ -32,6 +32,10 @@ export async function api<T>(
   }
   const response = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (!response.ok) {
+    if (response.status === 401 && token && !path.startsWith("/auth/")) {
+      setToken(null);
+      window.location.reload();
+    }
     const payload = await response.json().catch(() => null);
     throw new ApiError(
       payload?.error?.message ??
@@ -59,6 +63,24 @@ export async function downloadArtifact(runId: string, artifact: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = name;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadVendorArtifact(runId: string, name: string) {
+  const response = await fetch(
+    `${API_URL}/runs/${runId}/artifacts/download?name=${encodeURIComponent(name)}`,
+    { headers: { Authorization: `Bearer ${getToken()}` } },
+  );
+  if (!response.ok) throw new ApiError("Parser 원본 산출물을 내려받지 못했습니다.");
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const fallback = name.split("/").pop() || "artifact";
+  const filename = disposition.match(/filename="?([^"]+)"?/)?.[1] ?? fallback;
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
 }

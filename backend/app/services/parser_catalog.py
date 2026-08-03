@@ -1,5 +1,7 @@
 """환경에서 활성화한 공식 Parser Connector의 재사용 가능한 Catalog."""
 
+from dataclasses import dataclass
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,11 +18,69 @@ from app.adapters.parsers.paddle_structure import (
     PADDLE_CONFIG_SCHEMA,
     paddle_default_options,
 )
+from app.adapters.parsers.synap_http import (
+    SYNAP_CONFIG_SCHEMA,
+    SYNAP_DEFAULT_CONFIG,
+    SYNAP_SUPPORTED_FORMATS,
+)
 from app.core.config import Settings
 from app.db.models.parser import ExecutionType
 from app.db.models.user import User, UserRole
 from app.repositories.parser_repository import ParserRepository
 from app.schemas.parser import ParserCreate
+
+
+@dataclass(frozen=True, slots=True)
+class ParserCatalogEntry:
+    definition: ParserCreate
+    is_active: bool = True
+
+
+def _synap_parser_entries(settings: Settings) -> list[ParserCatalogEntry]:
+    entries: list[ParserCatalogEntry] = []
+    for name, slug, description, base_url in (
+        (
+            "Synap DocuAnalyzer Box",
+            "synap-docuanalyzer-box",
+            "Synap DocuAnalyzer Box 기반 문서 구조 분석 Parser",
+            settings.synap_box_base_url,
+        ),
+        (
+            "Synap DocuAnalyzer Chat",
+            "synap-docuanalyzer-chat",
+            "Synap DocuAnalyzer Chat 기반 문서 구조 분석 Parser",
+            settings.synap_chat_base_url,
+        ),
+    ):
+        entries.append(
+            ParserCatalogEntry(
+                definition=ParserCreate(
+                    name=name,
+                    slug=slug,
+                    description=description,
+                    provider="Synapsoft",
+                    model_name="DocuAnalyzer",
+                    model_version=None,
+                    execution_type=ExecutionType.HTTP,
+                    adapter_key="synap_http",
+                    base_url=base_url,
+                    default_config=SYNAP_DEFAULT_CONFIG,
+                    config_schema=SYNAP_CONFIG_SCHEMA,
+                    capabilities=[
+                        "TEXT",
+                        "MARKDOWN",
+                        "TABLE",
+                        "LAYOUT",
+                        "OCR",
+                        "FORMULA",
+                    ],
+                    supported_formats=SYNAP_SUPPORTED_FORMATS,
+                    timeout_seconds=300,
+                ),
+                is_active=bool(base_url and settings.synap_api_key),
+            )
+        )
+    return entries
 
 
 def enabled_parser_definitions(settings: Settings) -> list[ParserCreate]:
@@ -96,7 +156,21 @@ def enabled_parser_definitions(settings: Settings) -> list[ParserCreate]:
                 timeout_seconds=1800,
             )
         )
+    definitions.extend(
+        entry.definition for entry in _synap_parser_entries(settings) if entry.is_active
+    )
     return definitions
+
+
+def parser_catalog_entries(settings: Settings) -> list[ParserCatalogEntry]:
+    """미설정 외부 Parser를 포함해 관리 화면에 표시할 Catalog를 반환한다."""
+    entries = [
+        ParserCatalogEntry(definition=definition)
+        for definition in enabled_parser_definitions(settings)
+        if definition.adapter_key != "synap_http"
+    ]
+    entries.extend(_synap_parser_entries(settings))
+    return entries
 
 
 async def seed_enabled_parser_connectors(
@@ -115,11 +189,25 @@ async def seed_enabled_parser_connectors(
 
     parsers = ParserRepository(session)
     created: list[str] = []
-    for definition in enabled_parser_definitions(settings):
-        if await parsers.get_by_slug(definition.slug) is not None:
+    changed = False
+    for entry in parser_catalog_entries(settings):
+        definition = entry.definition
+        connector = await parsers.get_by_slug(definition.slug)
+        if connector is not None:
+            if definition.adapter_key == "synap_http":
+                desired_base_url = definition.base_url or connector.base_url
+                desired_active = bool(desired_base_url and settings.synap_api_key)
+                if connector.base_url != desired_base_url:
+                    connector.base_url = desired_base_url
+                    changed = True
+                if connector.is_active != desired_active:
+                    connector.is_active = desired_active
+                    changed = True
             continue
-        await parsers.create(definition, owner.id)
+        connector = await parsers.create(definition, owner.id)
+        connector.is_active = entry.is_active
         created.append(definition.slug)
-    if created:
+        changed = True
+    if changed:
         await session.commit()
     return created

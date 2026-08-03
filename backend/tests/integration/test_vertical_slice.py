@@ -24,6 +24,7 @@ from app.schemas.evaluation import EvaluationUpsert
 from app.schemas.experiment import ExperimentCreate, ParserRunCreate
 from app.schemas.parser import ParserCreate, ParserPresetCreate, ParserPresetUpdate
 from app.services.auth_service import AuthService
+from app.services.benchmark_service import BenchmarkService
 from app.services.comparison_service import ComparisonService
 from app.services.document_service import DocumentService
 from app.services.evaluation_service import EvaluationService
@@ -145,6 +146,27 @@ async def test_mock_parser_vertical_slice(tmp_path: Path, monkeypatch) -> None:
                 assert (run_dir / "output.txt").is_file()
                 assert (run_dir / "deidentified.json").is_file()
                 assert not (run_dir / "work").exists()
+
+            ground_truth_payload = comparison.runs[0].canonical
+            assert isinstance(ground_truth_payload, dict)
+            registered_ground_truth = await BenchmarkService(
+                session,
+                storage,
+            ).upsert_ground_truth(
+                document.id,
+                user.id,
+                ground_truth_payload,
+                dataset_name="integration-golden",
+                dataset_version="1.0",
+                schema_version="1.0",
+                notes="Vertical slice reference",
+            )
+            assert registered_ground_truth.document_filename == "contract.txt"
+            benchmark = await BenchmarkService(session, storage).summary(user.id)
+            assert benchmark.ground_truth_document_count == 1
+            assert benchmark.evaluated_run_count == 2
+            assert len(benchmark.parsers) == 2
+            assert benchmark.parsers[0].metrics["overall_quality"].value is not None
 
             evaluation = await EvaluationService(session).upsert(
                 comparison.runs[0].run_id,

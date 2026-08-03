@@ -11,7 +11,7 @@ from app.repositories.parser_repository import ParserRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import LoginRequest, SignupRequest
 from app.schemas.parser import ParserCreate
-from app.services.parser_catalog import enabled_parser_definitions
+from app.services.parser_catalog import parser_catalog_entries
 
 
 class AuthService:
@@ -70,9 +70,11 @@ class AuthService:
                 supported_formats=mock_formats,
             ),
         ]
-        definitions.extend(enabled_parser_definitions(get_settings()))
         for definition in definitions:
             await parsers.create(definition, user.id)
+        for entry in parser_catalog_entries(get_settings()):
+            connector = await parsers.create(entry.definition, user.id)
+            connector.is_active = entry.is_active
 
     async def login(self, data: LoginRequest) -> str:
         user = await self.users.get_by_email(data.email)

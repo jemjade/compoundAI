@@ -2,17 +2,21 @@
 
 import asyncio
 import hashlib
+import io
 import json
+import mimetypes
 import re
 import shutil
-from pathlib import Path
+import stat
+import zipfile
+from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import UUID
 
 from fastapi import UploadFile
 
 from app.adapters.deidentifiers.base import DeidentificationExecutionResult
-from app.adapters.parsers.base import ParserExecutionResult
+from app.adapters.parsers.base import ParserArtifact, ParserExecutionResult
 from app.core.exceptions import AppError
 from app.schemas.canonical_document import CanonicalDocument
 
@@ -50,6 +54,57 @@ MIME_BY_EXTENSION = {
     "webp": {"image/webp"},
 }
 CHUNK_SIZE = 1024 * 1024
+MAX_ARCHIVE_FILES = 2_000
+MAX_ARCHIVE_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
+
+
+def _safe_artifact_name(name: str) -> str:
+    """Archive 경로를 유지하되 절대경로·상위 경로·제어문자를 제거한다."""
+    normalized = name.replace("\\", "/").strip()
+    path = PurePosixPath(normalized)
+    if not normalized or path.is_absolute() or ".." in path.parts:
+        raise AppError("INVALID_PARSER_ARTIFACT", "Parser artifact contained an unsafe path.")
+    parts = [
+        re.sub(r"[^A-Za-z0-9가-힣._ -]", "_", part)[:200]
+        for part in path.parts
+        if part not in {"", "."}
+    ]
+    if not parts or any(not part for part in parts):
+        raise AppError("INVALID_PARSER_ARTIFACT", "Parser artifact name is invalid.")
+    return PurePosixPath(*parts).as_posix()
+
+
+def _is_zip(name: str, media_type: str, content: bytes) -> bool:
+    return (
+        name.lower().endswith(".zip")
+        or media_type in {"application/zip", "application/x-zip-compressed"}
+        or content.startswith(b"PK\x03\x04")
+    )
+
+
+def _expanded_zip_artifacts(content: bytes) -> list[tuple[str, str, bytes]]:
+    """ZIP bomb와 경로 이탈을 차단하며 실제 파일만 메모리로 해제한다."""
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile as exc:
+        raise AppError("INVALID_PARSER_ARCHIVE", "Parser returned an invalid ZIP archive.") from exc
+    members = [item for item in archive.infolist() if not item.is_dir()]
+    if len(members) > MAX_ARCHIVE_FILES:
+        raise AppError("INVALID_PARSER_ARCHIVE", "Parser ZIP contains too many files.")
+    total_size = sum(item.file_size for item in members)
+    if total_size > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
+        raise AppError("INVALID_PARSER_ARCHIVE", "Parser ZIP is too large after extraction.")
+
+    extracted: list[tuple[str, str, bytes]] = []
+    for member in members:
+        if member.flag_bits & 0x1:
+            raise AppError("INVALID_PARSER_ARCHIVE", "Encrypted Parser ZIP is not supported.")
+        if stat.S_ISLNK(member.external_attr >> 16):
+            raise AppError("INVALID_PARSER_ARCHIVE", "Parser ZIP may not contain symbolic links.")
+        safe_name = _safe_artifact_name(member.filename)
+        media_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+        extracted.append((safe_name, media_type, archive.read(member)))
+    return extracted
 
 
 class StorageService:
@@ -155,7 +210,7 @@ class StorageService:
         run_id: UUID,
         execution_result: ParserExecutionResult,
         canonical_document: CanonicalDocument,
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         """큰 Parser 산출물을 PostgreSQL 외부에 저장하고 상대 경로를 반환한다."""
         output_dir = await self.create_run_directory(run_id)
         raw_path = output_dir / "raw.json"
@@ -163,7 +218,7 @@ class StorageService:
         markdown_path = output_dir / "output.md"
         text_path = output_dir / "output.txt"
 
-        def write_results() -> None:
+        def write_results() -> list[dict[str, Any]]:
             raw_path.write_text(
                 json.dumps(execution_result.raw_data, ensure_ascii=False, indent=2),
                 encoding="utf-8",
@@ -174,14 +229,81 @@ class StorageService:
             )
             markdown_path.write_text(execution_result.markdown or "", encoding="utf-8")
             text_path.write_text(execution_result.text or "", encoding="utf-8")
+            vendor_dir = output_dir / "vendor"
+            manifest: list[dict[str, Any]] = []
+            artifacts = list(execution_result.artifacts)
+            if execution_result.raw_result_path is not None:
+                artifacts.append(
+                    ParserArtifact(
+                        name=f"original-raw{execution_result.raw_result_path.suffix}",
+                        source_path=execution_result.raw_result_path,
+                        source="parser_raw_result_path",
+                    )
+                )
+            for artifact in artifacts:
+                content = artifact.content
+                if content is None and artifact.source_path is not None:
+                    source_path = artifact.source_path.resolve()
+                    if not source_path.is_file():
+                        raise AppError(
+                            "PARSER_ARTIFACT_NOT_FOUND",
+                            f"Parser artifact {artifact.name} is not available.",
+                        )
+                    content = source_path.read_bytes()
+                if content is None:
+                    continue
+                safe_name = _safe_artifact_name(artifact.name)
+                target = vendor_dir / safe_name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+                relative_path = target.relative_to(self.data_root).as_posix()
+                manifest.append(
+                    {
+                        "name": safe_name,
+                        "path": relative_path,
+                        "media_type": artifact.media_type,
+                        "size_bytes": len(content),
+                        "source": artifact.source,
+                        "archive_entry": False,
+                    }
+                )
+                if _is_zip(safe_name, artifact.media_type, content):
+                    for entry_name, entry_media_type, entry_content in _expanded_zip_artifacts(
+                        content
+                    ):
+                        entry_target = vendor_dir / "extracted" / entry_name
+                        entry_target.parent.mkdir(parents=True, exist_ok=True)
+                        entry_target.write_bytes(entry_content)
+                        manifest.append(
+                            {
+                                "name": f"extracted/{entry_name}",
+                                "path": entry_target.relative_to(self.data_root).as_posix(),
+                                "media_type": entry_media_type,
+                                "size_bytes": len(entry_content),
+                                "source": safe_name,
+                                "archive_entry": True,
+                            }
+                        )
+            return manifest
 
-        await asyncio.to_thread(write_results)
+        artifact_manifest = await asyncio.to_thread(write_results)
         return {
             "raw_result_path": raw_path.relative_to(self.data_root).as_posix(),
             "canonical_result_path": canonical_path.relative_to(self.data_root).as_posix(),
             "markdown_path": markdown_path.relative_to(self.data_root).as_posix(),
             "text_path": text_path.relative_to(self.data_root).as_posix(),
+            "artifact_manifest": artifact_manifest,
         }
+
+    async def save_ground_truth(self, document_id: UUID, payload: dict[str, Any]) -> str:
+        path = self._safe_path(Path("ground-truths") / str(document_id) / "canonical.json")
+        await asyncio.to_thread(path.parent.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(
+            path.write_text,
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            "utf-8",
+        )
+        return path.relative_to(self.data_root).as_posix()
 
     async def read_text(self, relative_path: str | None) -> str | None:
         if relative_path is None:

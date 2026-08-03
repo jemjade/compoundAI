@@ -218,24 +218,27 @@ class ExperimentService:
 
     async def _run_summary(self, run: ExperimentRun) -> RunSummary:
         summary = RunSummary.model_validate(run)
-        result = await self.session.scalar(
+        deidentification_result = await self.session.scalar(
             select(DeidentificationResult).where(DeidentificationResult.run_id == run.id)
         )
-        if result is None:
-            return summary
-        return summary.model_copy(
-            update={
-                "deidentification": DeidentificationSummary(
-                    provider=result.provider,
-                    input_type=result.input_type,
-                    detected_entity_count=result.detected_entity_count,
-                    masked_entity_count=result.masked_entity_count,
-                    masked_file_available=result.masked_file_path is not None,
-                    latency_ms=result.metrics.get("pipeline_latency_ms"),
-                    error_message=result.error_message,
-                )
-            }
+        parser_result = await self.session.scalar(
+            select(RunResult).where(RunResult.run_id == run.id)
         )
+        updates = {
+            "artifacts": parser_result.artifact_manifest if parser_result else [],
+        }
+        if deidentification_result is None:
+            return summary.model_copy(update=updates)
+        updates["deidentification"] = DeidentificationSummary(
+            provider=deidentification_result.provider,
+            input_type=deidentification_result.input_type,
+            detected_entity_count=deidentification_result.detected_entity_count,
+            masked_entity_count=deidentification_result.masked_entity_count,
+            masked_file_available=deidentification_result.masked_file_path is not None,
+            latency_ms=deidentification_result.metrics.get("pipeline_latency_ms"),
+            error_message=deidentification_result.error_message,
+        )
+        return summary.model_copy(update=updates)
 
     async def list(self, user_id: UUID) -> list[ExperimentListItem]:
         items: list[ExperimentListItem] = []

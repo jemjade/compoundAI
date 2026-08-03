@@ -29,3 +29,17 @@ def test_paddle_boolean_environment_value_is_parsed(
 
     assert settings.paddleocr_enabled is False
     assert settings.paddleocr_use_table_recognition is True
+
+
+def test_blank_synap_environment_values_are_optional(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SYNAP_BOX_BASE_URL", "")
+    monkeypatch.setenv("SYNAP_CHAT_BASE_URL", "")
+    monkeypatch.setenv("SYNAP_API_KEY", "")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.synap_box_base_url is None
+    assert settings.synap_chat_base_url is None
+    assert settings.synap_api_key is None

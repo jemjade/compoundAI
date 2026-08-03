@@ -3774,6 +3774,208 @@ textarea::placeholder {
   background: var(--success-subtle);
 }
 
+.dataset-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.dataset-tags span {
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: #dadbe0;
+  background: rgb(255 255 255 / 8%);
+  font: 7px var(--mono);
+}
+
+.metric-definition-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  padding: 8px 20px 14px;
+}
+
+.metric-definition-grid > div {
+  min-height: 54px;
+  padding: 10px 12px 8px 0;
+  border-bottom: 1px solid #efefec;
+}
+
+.metric-definition-grid strong,
+.metric-definition-grid span {
+  display: block;
+}
+
+.metric-definition-grid strong {
+  margin-bottom: 4px;
+  font-size: 9px;
+}
+
+.metric-definition-grid span {
+  color: var(--text-tertiary);
+  font-size: 7.5px;
+  line-height: 1.45;
+}
+
+.ground-truth-panel,
+.benchmark-matrix-panel {
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.ground-truth-panel form {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 0.55fr 1.4fr auto;
+  align-items: end;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ground-truth-panel label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font: 7px var(--mono);
+  text-transform: uppercase;
+}
+
+.ground-truth-panel input,
+.ground-truth-panel select {
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: 8px var(--sans);
+}
+
+.ground-truth-file input {
+  padding: 6px 8px;
+  font-size: 7px;
+}
+
+.ground-truth-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+}
+
+.ground-truth-list > div {
+  min-width: 0;
+  padding: 11px 16px;
+  background: var(--surface);
+}
+
+.ground-truth-list strong,
+.ground-truth-list span,
+.ground-truth-list small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ground-truth-list strong {
+  font-size: 8.5px;
+}
+
+.ground-truth-list span,
+.ground-truth-list small {
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font: 7px var(--mono);
+}
+
+.benchmark-matrix {
+  overflow-x: auto;
+}
+
+.benchmark-matrix-head,
+.benchmark-matrix-row {
+  display: grid;
+  grid-template-columns: minmax(205px, 1.5fr) repeat(7, minmax(64px, 0.55fr)) minmax(90px, 0.7fr);
+  align-items: center;
+  min-width: 900px;
+  gap: 8px;
+  padding: 0 16px;
+}
+
+.benchmark-matrix-head {
+  height: 34px;
+  color: var(--text-tertiary);
+  background: var(--surface-subtle);
+  font: 600 7px var(--mono);
+  text-transform: uppercase;
+}
+
+.benchmark-matrix-row {
+  min-height: 64px;
+  border-top: 1px solid #efefec;
+}
+
+.benchmark-matrix-row > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.benchmark-matrix-row > div:first-child div,
+.benchmark-matrix-row > span {
+  min-width: 0;
+}
+
+.benchmark-matrix-row strong,
+.benchmark-matrix-row small {
+  display: block;
+}
+
+.benchmark-matrix-row > div strong {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.benchmark-matrix-row small {
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font: 6.5px var(--mono);
+}
+
+.benchmark-matrix-row > span strong {
+  font: 600 8.5px var(--mono);
+}
+
+.benchmark-matrix-row .primary-metric strong {
+  color: var(--accent);
+  font-size: 10px;
+}
+
+.quantitative-runs .evaluation-table-head,
+.quantitative-runs .evaluation-table-row {
+  grid-template-columns: 1.6fr 1fr repeat(5, 0.48fr) 30px;
+}
+
+.quantitative-runs .evaluation-score {
+  width: auto;
+  min-width: 40px;
+  padding: 0 5px;
+}
+
+.quantitative-runs .mono small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-tertiary);
+  font-size: 6.5px;
+}
+
 /* Experiment and parser forms */
 .experiment-form,
 .config-layout {

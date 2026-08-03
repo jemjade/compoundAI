@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.models.experiment import DeidentificationStatus, ParseStatus
-from app.schemas.result import DeidentificationSummary
+from app.schemas.result import ArtifactSummary, DeidentificationSummary
 
 
 class ParserRunCreate(BaseModel):
@@ -37,6 +37,7 @@ class RunSummary(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     deidentification: DeidentificationSummary | None = None
+    artifacts: list[ArtifactSummary] = Field(default_factory=list)
 
 
 class ExperimentCreatedRun(BaseModel):

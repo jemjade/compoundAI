@@ -161,6 +161,11 @@ class ComparisonService:
                             if deidentification_result
                             else None
                         ),
+                        *(
+                            item.get("path")
+                            for item in result.artifact_manifest
+                            if isinstance(item, dict)
+                        ),
                     }
                     if path is not None
                 ]
@@ -192,6 +197,7 @@ class ComparisonService:
                     deidentification=deidentification_summary,
                     canonical=canonical,
                     tables=extract_tables(canonical),
+                    artifacts=(result.artifact_manifest if result else []),
                     evaluation=(
                         EvaluationResponse.model_validate(evaluation) if evaluation else None
                     ),
