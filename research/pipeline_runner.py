@@ -1,4 +1,4 @@
-"""Real Responses-API synthesis, chunking, BM25 retrieval, and grounded-QA runner.
+"""Local Ollama or OpenAI synthesis, chunking, BM25 retrieval, and grounded-QA runner.
 
 The ``run`` command implements the JSON stdin/stdout contract in ``research.pilot``.  Logs go to
 stderr and never include the API key.  ``preflight`` computes calls without contacting a model.
@@ -15,21 +15,39 @@ import re
 import subprocess
 import sys
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlsplit, urlunsplit
+from urllib.request import Request, urlopen
 from uuid import uuid4
 
 from research.pilot import CONDITIONS, SAFE_BLOCK_FIELDS, digest, runner_payload
 
 SYNTHESIS_PROMPT_VERSION = "loss-controlled-synthesis-v1"
+PASSTHROUGH_VERSION = "deterministic-block-passthrough-v1"
 QA_PROMPT_VERSION = "grounded-qa-json-v1"
 TOKEN_PATTERN = re.compile(r"[0-9A-Za-z]+|[가-힣]+")
 SOURCE_PATTERN = re.compile(r"\[source:([^\]\n]+)\]")
 ALLOWED_PAYLOAD_KEYS = {"schema_version", "repeat_id", "blocks", "questions"}
 ALLOWED_BLOCK_KEYS = set(SAFE_BLOCK_FIELDS)
+SUPPORTED_PROVIDERS = {"openai_responses", "ollama_generate"}
+
+QA_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "answer": {"type": "string"},
+        "evidence_chunk_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "uniqueItems": True,
+        },
+    },
+    "required": ["answer", "evidence_chunk_ids"],
+    "additionalProperties": False,
+}
 
 SYNTHESIS_INSTRUCTIONS = """You are producing a loss-controlled intermediate representation.
 Preserve every factual statement, number, unit, date, table row, sign, and qualifier from the
@@ -44,6 +62,30 @@ shown in the input. If the evidence is insufficient, say so in answer and return
 Do not use outside knowledge. Preserve numeric signs, units, and calculation details."""
 
 
+def _qa_response_schema(input_text: str) -> dict[str, Any]:
+    schema = {
+        **QA_RESPONSE_SCHEMA,
+        "properties": {
+            **QA_RESPONSE_SCHEMA["properties"],
+            "evidence_chunk_ids": {
+                **QA_RESPONSE_SCHEMA["properties"]["evidence_chunk_ids"],
+                "items": {"type": "string"},
+            },
+        },
+    }
+    try:
+        value = json.loads(input_text)
+        rows = value["retrieved_chunks"]
+        chunk_ids = [row["chunk_id"] for row in rows]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return schema
+    if chunk_ids and all(isinstance(chunk_id, str) for chunk_id in chunk_ids):
+        schema["properties"]["evidence_chunk_ids"]["items"]["enum"] = list(
+            dict.fromkeys(chunk_ids)
+        )
+    return schema
+
+
 class PipelineError(RuntimeError):
     """A fail-closed pipeline error."""
 
@@ -54,9 +96,10 @@ class RunnerConfig:
     provider: str = "openai_responses"
     model: str = ""
     base_url: str = "https://api.openai.com/v1"
-    api_key_env: str = "OPENAI_API_KEY"
+    api_key_env: str | None = "OPENAI_API_KEY"
     timeout_seconds: float = 120.0
     max_retries: int = 0
+    synthesis_mode: str = "model"
     synthesis_batch_chars: int = 90_000
     chunk_chars: int = 5_000
     chunk_overlap_chars: int = 400
@@ -64,10 +107,12 @@ class RunnerConfig:
     synthesis_max_output_tokens: int = 12_000
     qa_max_output_tokens: int = 1_200
     reasoning_effort: str | None = None
-    verbosity: str | None = "low"
+    verbosity: str | None = None
     temperature: float | None = None
     top_p: float | None = None
     max_calls_per_pipeline: int = 64
+    ollama_num_ctx: int | None = None
+    ollama_keep_alive: str | int | None = None
 
     @classmethod
     def load(cls, path: Path | None) -> RunnerConfig:
@@ -86,6 +131,8 @@ class RunnerConfig:
             "RESEARCH_LLM_API_KEY_ENV": "api_key_env",
             "RESEARCH_LLM_REASONING_EFFORT": "reasoning_effort",
             "RESEARCH_LLM_VERBOSITY": "verbosity",
+            "RESEARCH_SYNTHESIS_MODE": "synthesis_mode",
+            "RESEARCH_OLLAMA_KEEP_ALIVE": "ollama_keep_alive",
         }
         for env_name, field in env_map.items():
             if env_name in os.environ:
@@ -103,6 +150,7 @@ class RunnerConfig:
             ),
             "RESEARCH_QA_MAX_OUTPUT_TOKENS": ("qa_max_output_tokens", int),
             "RESEARCH_MAX_CALLS_PER_PIPELINE": ("max_calls_per_pipeline", int),
+            "RESEARCH_OLLAMA_NUM_CTX": ("ollama_num_ctx", int),
             "RESEARCH_LLM_TEMPERATURE": ("temperature", float),
             "RESEARCH_LLM_TOP_P": ("top_p", float),
         }
@@ -118,8 +166,10 @@ class RunnerConfig:
         return config
 
     def validate(self) -> None:
-        if self.schema_version != 1 or self.provider != "openai_responses":
-            raise ValueError("Only schema_version=1 and provider=openai_responses are supported")
+        if self.schema_version != 1 or self.provider not in SUPPORTED_PROVIDERS:
+            raise ValueError(
+                "Only schema_version=1 and providers openai_responses/ollama_generate are supported"
+            )
         if self.reasoning_effort == "":
             object.__setattr__(self, "reasoning_effort", None)
         if self.verbosity == "":
@@ -137,6 +187,8 @@ class RunnerConfig:
             raise ValueError("Unsupported reasoning_effort")
         if self.verbosity not in {None, "low", "medium", "high"}:
             raise ValueError("Unsupported verbosity")
+        if self.synthesis_mode not in {"model", "passthrough"}:
+            raise ValueError("synthesis_mode must be model or passthrough")
         positive = (
             self.timeout_seconds,
             self.synthesis_batch_chars,
@@ -154,17 +206,39 @@ class RunnerConfig:
         if not math.isfinite(self.timeout_seconds):
             raise ValueError("timeout_seconds must be finite")
         if not 0 <= self.chunk_overlap_chars < self.chunk_chars:
-            raise ValueError("chunk_overlap_chars must be nonnegative and smaller than chunk_chars")
+            raise ValueError(
+                "chunk_overlap_chars must be nonnegative and smaller than chunk_chars"
+            )
         if type(self.max_retries) is not int or self.max_retries < 0:
             raise ValueError("max_retries must be a nonnegative integer")
+        if self.ollama_num_ctx is not None and (
+            type(self.ollama_num_ctx) is not int or self.ollama_num_ctx <= 0
+        ):
+            raise ValueError("ollama_num_ctx must be a positive integer")
+        if self.ollama_keep_alive is not None and (
+            isinstance(self.ollama_keep_alive, bool)
+            or not isinstance(self.ollama_keep_alive, str | int)
+            or (
+                isinstance(self.ollama_keep_alive, str)
+                and not self.ollama_keep_alive.strip()
+            )
+        ):
+            raise ValueError(
+                "ollama_keep_alive must be a duration string or integer seconds"
+            )
         if self.temperature is not None and not 0 <= self.temperature <= 2:
             raise ValueError("temperature must be between 0 and 2")
         if self.top_p is not None and not 0 <= self.top_p <= 1:
             raise ValueError("top_p must be between 0 and 1")
         if self.temperature is not None and self.top_p is not None:
             raise ValueError("Set temperature or top_p, not both")
-        if not self.api_key_env or not re.fullmatch(r"[A-Z_][A-Z0-9_]*", self.api_key_env):
+        if self.provider == "openai_responses" and (
+            not self.api_key_env
+            or not re.fullmatch(r"[A-Z_][A-Z0-9_]*", self.api_key_env)
+        ):
             raise ValueError("api_key_env must be an environment variable name")
+        if self.provider == "ollama_generate" and self.api_key_env is not None:
+            raise ValueError("Local Ollama must use api_key_env=null")
         parsed = urlsplit(self.base_url)
         if (
             parsed.scheme not in {"http", "https"}
@@ -174,13 +248,29 @@ class RunnerConfig:
             or parsed.query
             or parsed.fragment
         ):
-            raise ValueError("base_url must be an HTTP(S) URL without credentials/query/fragment")
+            raise ValueError(
+                "base_url must be an HTTP(S) URL without credentials/query/fragment"
+            )
+        if self.provider == "ollama_generate" and (
+            parsed.scheme != "http"
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.path not in {"", "/"}
+        ):
+            raise ValueError("Local Ollama base_url must be an HTTP loopback origin")
+        if self.provider == "ollama_generate" and (
+            self.reasoning_effort is not None or self.verbosity is not None
+        ):
+            raise ValueError("Ollama does not accept reasoning_effort or verbosity")
 
     def public_dict(self) -> dict[str, Any]:
         value = asdict(self)
         parsed = urlsplit(self.base_url)
-        value["base_url"] = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
-        value["api_key_configured"] = bool(os.environ.get(self.api_key_env))
+        value["base_url"] = urlunsplit(
+            (parsed.scheme, parsed.netloc, parsed.path, "", "")
+        )
+        value["api_key_configured"] = bool(
+            self.api_key_env and os.environ.get(self.api_key_env)
+        )
         return value
 
 
@@ -208,14 +298,17 @@ class OpenAIResponsesAdapter:
     """One provider adapter using the official OpenAI Python SDK Responses API."""
 
     execution_mode = "live_model"
+    sdk = "openai-python"
 
     def __init__(self, config: RunnerConfig, client: Any | None = None) -> None:
         self.config = config
         self.sdk_version = "injected_client"
         if client is None:
-            api_key = os.environ.get(config.api_key_env)
+            api_key = os.environ.get(config.api_key_env or "")
             if not api_key:
-                raise PipelineError(f"Missing API key environment variable: {config.api_key_env}")
+                raise PipelineError(
+                    f"Missing API key environment variable: {config.api_key_env}"
+                )
             try:
                 import openai
                 from openai import OpenAI
@@ -257,18 +350,7 @@ class OpenAIResponsesAdapter:
                 "type": "json_schema",
                 "name": "grounded_answer",
                 "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "answer": {"type": "string"},
-                        "evidence_chunk_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
-                    },
-                    "required": ["answer", "evidence_chunk_ids"],
-                    "additionalProperties": False,
-                },
+                "schema": _qa_response_schema(input_text),
             }
         if text_config:
             parameters["text"] = text_config
@@ -279,11 +361,15 @@ class OpenAIResponsesAdapter:
         try:
             response = self.client.responses.create(**parameters)
         except Exception as error:
-            raise PipelineError(f"{stage} model request failed: {type(error).__name__}") from error
+            raise PipelineError(
+                f"{stage} model request failed: {type(error).__name__}"
+            ) from error
         status = str(getattr(response, "status", ""))
         text = str(getattr(response, "output_text", "") or "")
         if status != "completed" or not text.strip():
-            raise PipelineError(f"{stage} model response was {status or 'missing'} or empty")
+            raise PipelineError(
+                f"{stage} model response was {status or 'missing'} or empty"
+            )
         usage_obj = getattr(response, "usage", None)
         usage = {
             key: int(getattr(usage_obj, key, 0) or 0)
@@ -298,9 +384,177 @@ class OpenAIResponsesAdapter:
         )
 
 
+OllamaTransport = Callable[[str, dict[str, Any], float], dict[str, Any]]
+
+
+def _request_json(
+    url: str,
+    *,
+    timeout: float,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    data = json.dumps(payload).encode() if payload is not None else None
+    request = Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"} if data is not None else {},
+        method="POST" if data is not None else "GET",
+    )
+    with urlopen(request, timeout=timeout) as response:  # noqa: S310 - loopback is validated
+        result = json.loads(response.read())
+    if not isinstance(result, dict):
+        raise ValueError("Ollama returned a non-object JSON response")
+    return result
+
+
+class OllamaGenerateAdapter:
+    """Local-only Ollama native generate API adapter with structured QA output."""
+
+    execution_mode = "live_local_model"
+    sdk = "ollama-native-http"
+
+    def __init__(
+        self,
+        config: RunnerConfig,
+        transport: OllamaTransport | None = None,
+        runtime_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.config = config
+        self.transport = transport or self._post
+        if transport is None:
+            runtime_metadata = self._discover_runtime()
+        self.provider_runtime = runtime_metadata or {"transport": "injected"}
+        self.sdk_version = str(self.provider_runtime.get("ollama_version", "unknown"))
+
+    @property
+    def _origin(self) -> str:
+        return self.config.base_url.rstrip("/")
+
+    def _discover_runtime(self) -> dict[str, Any]:
+        try:
+            version = _request_json(
+                f"{self._origin}/api/version",
+                timeout=self.config.timeout_seconds,
+            )
+            tags = _request_json(
+                f"{self._origin}/api/tags",
+                timeout=self.config.timeout_seconds,
+            )
+        except Exception as error:
+            raise PipelineError(
+                f"Ollama runtime discovery failed: {type(error).__name__}"
+            ) from error
+        models = tags.get("models")
+        if not isinstance(models, list):
+            raise PipelineError("Ollama model list is missing")
+        selected = next(
+            (
+                row
+                for row in models
+                if isinstance(row, dict)
+                and self.config.model in {row.get("name"), row.get("model")}
+            ),
+            None,
+        )
+        if selected is None:
+            raise PipelineError(f"Ollama model is not installed: {self.config.model}")
+        details = (
+            selected.get("details") if isinstance(selected.get("details"), dict) else {}
+        )
+        return {
+            "ollama_version": str(version.get("version", "unknown")),
+            "model_digest": selected.get("digest"),
+            "parameter_size": details.get("parameter_size"),
+            "quantization_level": details.get("quantization_level"),
+        }
+
+    def _post(
+        self, url: str, payload: dict[str, Any], timeout: float
+    ) -> dict[str, Any]:
+        return _request_json(url, timeout=timeout, payload=payload)
+
+    def generate(
+        self,
+        *,
+        stage: str,
+        instructions: str,
+        input_text: str,
+        max_output_tokens: int,
+    ) -> Generation:
+        options: dict[str, Any] = {"num_predict": max_output_tokens}
+        if self.config.ollama_num_ctx is not None:
+            options["num_ctx"] = self.config.ollama_num_ctx
+        if self.config.temperature is not None:
+            options["temperature"] = self.config.temperature
+        if self.config.top_p is not None:
+            options["top_p"] = self.config.top_p
+        payload: dict[str, Any] = {
+            "model": self.config.model,
+            "system": instructions,
+            "prompt": input_text,
+            "stream": False,
+            "options": options,
+        }
+        if self.config.ollama_keep_alive is not None:
+            payload["keep_alive"] = self.config.ollama_keep_alive
+        if stage == "qa":
+            payload["format"] = _qa_response_schema(input_text)
+
+        response: dict[str, Any] | None = None
+        last_error: Exception | None = None
+        for _ in range(self.config.max_retries + 1):
+            try:
+                response = self.transport(
+                    f"{self._origin}/api/generate",
+                    payload,
+                    self.config.timeout_seconds,
+                )
+                break
+            except Exception as error:
+                last_error = error
+        if response is None:
+            raise PipelineError(
+                f"{stage} Ollama request failed: {type(last_error).__name__}"
+            ) from last_error
+        text = str(response.get("response", "") or "")
+        done = response.get("done") is True
+        done_reason = str(response.get("done_reason", "") or "")
+        if not done or done_reason == "length" or not text.strip():
+            state = done_reason or ("empty" if done else "incomplete")
+            raise PipelineError(f"{stage} Ollama response was {state}")
+        input_tokens = response.get("prompt_eval_count", 0)
+        output_tokens = response.get("eval_count", 0)
+        if type(input_tokens) is not int or type(output_tokens) is not int:
+            raise PipelineError("Ollama token usage was invalid")
+        created_at = str(response.get("created_at", "") or "")
+        response_id = (
+            "ollama:"
+            + digest(
+                [
+                    self.config.model,
+                    stage,
+                    created_at,
+                    hashlib.sha256(input_text.encode()).hexdigest(),
+                ]
+            )[:24]
+        )
+        return Generation(
+            text=text,
+            response_id=response_id,
+            model=str(response.get("model", self.config.model)),
+            usage={
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+            },
+        )
+
+
 def _validate_payload(payload: dict[str, Any]) -> None:
     if not isinstance(payload, dict) or set(payload) != ALLOWED_PAYLOAD_KEYS:
-        raise ValueError("Runner accepts only schema_version, repeat_id, blocks, and questions")
+        raise ValueError(
+            "Runner accepts only schema_version, repeat_id, blocks, and questions"
+        )
     if payload.get("schema_version") != 1 or type(payload.get("repeat_id")) is not int:
         raise ValueError("Invalid runner schema_version or repeat_id")
     blocks = payload.get("blocks")
@@ -321,7 +575,9 @@ def _validate_payload(payload: dict[str, Any]) -> None:
         required = ("block_id", "document_id", "page_number", "text")
         if any(key not in block for key in required):
             raise ValueError("A block is missing a required field")
-        if not all(isinstance(block[key], str) for key in ("block_id", "document_id", "text")):
+        if not all(
+            isinstance(block[key], str) for key in ("block_id", "document_id", "text")
+        ):
             raise ValueError("Block identifiers and text must be strings")
         if type(block["page_number"]) is not int or block["page_number"] < 1:
             raise ValueError("Block page_number must be a positive integer")
@@ -353,11 +609,15 @@ def _source_segments(blocks: list[dict[str, Any]], limit: int) -> list[dict[str,
             continue
         for start in range(0, len(text), limit):
             end = min(len(text), start + limit)
-            segments.append({"block": block, "start": start, "end": end, "text": text[start:end]})
+            segments.append(
+                {"block": block, "start": start, "end": end, "text": text[start:end]}
+            )
     return segments
 
 
-def synthesis_batches(blocks: list[dict[str, Any]], limit: int) -> list[list[dict[str, Any]]]:
+def synthesis_batches(
+    blocks: list[dict[str, Any]], limit: int
+) -> list[list[dict[str, Any]]]:
     batches: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
     current_chars = 0
@@ -393,7 +653,9 @@ def _synthesis_input(batch: list[dict[str, Any]]) -> str:
         }
         header["text_start"] = segment["start"]
         header["text_end"] = segment["end"]
-        rows.append(f"SOURCE {json.dumps(header, ensure_ascii=False)}\n{segment['text']}")
+        rows.append(
+            f"SOURCE {json.dumps(header, ensure_ascii=False)}\n{segment['text']}"
+        )
     return "\n\n".join(rows)
 
 
@@ -419,11 +681,15 @@ def tokenize(text: str) -> list[str]:
     return [match.group(0).lower() for match in TOKEN_PATTERN.finditer(text)]
 
 
-def bm25_search(query: str, chunks: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
+def bm25_search(
+    query: str, chunks: list[dict[str, Any]], top_k: int
+) -> list[dict[str, Any]]:
     tokenized = [tokenize(chunk["text"]) for chunk in chunks]
     query_tokens = tokenize(query)
     document_count = len(chunks)
-    average_length = sum(map(len, tokenized)) / document_count if document_count else 0.0
+    average_length = (
+        sum(map(len, tokenized)) / document_count if document_count else 0.0
+    )
     document_frequency = Counter()
     for tokens in tokenized:
         document_frequency.update(set(tokens))
@@ -436,7 +702,8 @@ def bm25_search(query: str, chunks: list[dict[str, Any]], top_k: int) -> list[di
             if not frequency:
                 continue
             inverse = math.log(
-                1 + (document_count - document_frequency[token] + 0.5)
+                1
+                + (document_count - document_frequency[token] + 0.5)
                 / (document_frequency[token] + 0.5)
             )
             denominator = frequency + 1.5 * (
@@ -457,15 +724,19 @@ def _parse_qa(text: str, valid_chunk_ids: set[str]) -> tuple[str, list[str]]:
     except json.JSONDecodeError as error:
         raise PipelineError("QA response was not one valid JSON object") from error
     if not isinstance(value, dict) or set(value) != {"answer", "evidence_chunk_ids"}:
-        raise PipelineError("QA response must contain only answer and evidence_chunk_ids")
+        raise PipelineError(
+            "QA response must contain only answer and evidence_chunk_ids"
+        )
     if not isinstance(value["answer"], str) or not value["answer"].strip():
         raise PipelineError("QA answer is missing")
     evidence = value["evidence_chunk_ids"]
-    if not isinstance(evidence, list) or not all(isinstance(item, str) for item in evidence):
+    if not isinstance(evidence, list) or not all(
+        isinstance(item, str) for item in evidence
+    ):
         raise PipelineError("QA evidence_chunk_ids must be a string array")
-    if len(evidence) != len(set(evidence)) or set(evidence) - valid_chunk_ids:
-        raise PipelineError("QA cited duplicate or unavailable chunks")
-    return value["answer"], evidence
+    if set(evidence) - valid_chunk_ids:
+        raise PipelineError("QA cited unavailable chunks")
+    return value["answer"], list(dict.fromkeys(evidence))
 
 
 def _usage_total(generations: list[Generation]) -> dict[str, int]:
@@ -479,7 +750,8 @@ def _code_provenance() -> dict[str, Any]:
     root = Path(__file__).resolve().parents[1]
     files = [root / "research/pipeline_runner.py", root / "research/pilot.py"]
     file_hashes = {
-        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in files
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in files
     }
     combined_hash = digest(file_hashes)
     git_commit = None
@@ -511,6 +783,12 @@ def _code_provenance() -> dict[str, Any]:
     }
 
 
+def _generator_for(config: RunnerConfig) -> Generator:
+    if config.provider == "ollama_generate":
+        return OllamaGenerateAdapter(config)
+    return OpenAIResponsesAdapter(config)
+
+
 def run_pipeline(
     payload: dict[str, Any], config: RunnerConfig, generator: Generator | None = None
 ) -> dict[str, Any]:
@@ -519,14 +797,15 @@ def run_pipeline(
     if not config.model:
         raise ValueError("Set model in config or RESEARCH_LLM_MODEL")
     batches = synthesis_batches(payload["blocks"], config.synthesis_batch_chars)
-    expected_calls = len(batches) + len(payload["questions"])
+    model_synthesis_call_count = len(batches) if config.synthesis_mode == "model" else 0
+    expected_calls = model_synthesis_call_count + len(payload["questions"])
     if expected_calls > config.max_calls_per_pipeline:
         raise PipelineError(
             f"Expected {expected_calls} calls exceeds max_calls_per_pipeline="
             f"{config.max_calls_per_pipeline}"
         )
     if generator is None:
-        generator = OpenAIResponsesAdapter(config)
+        generator = _generator_for(config)
     execution_id = str(uuid4())
     started_at = datetime.now(UTC).isoformat()
     trace: list[dict[str, Any]] = []
@@ -534,75 +813,136 @@ def run_pipeline(
     synthesized: list[dict[str, Any]] = []
     chunks: list[dict[str, Any]] = []
 
-    for index, batch in enumerate(batches):
-        input_text = _synthesis_input(batch)
-        generation = generator.generate(
-            stage="synthesis",
-            instructions=SYNTHESIS_INSTRUCTIONS,
-            input_text=input_text,
-            max_output_tokens=config.synthesis_max_output_tokens,
-        )
-        generations.append(generation)
-        source_ids = list(dict.fromkeys(item["block"]["block_id"] for item in batch))
-        synthesis_id = f"synthesis:{execution_id}:{index}"
-        synthesis_node = {
-            "synthesis_id": synthesis_id,
-            "text": generation.text,
-            "source_block_ids": source_ids,
-        }
-        synthesized.append(synthesis_node)
-        trace.append(
-            {
-                "stage": "synthesis",
-                "input_ids": source_ids,
-                "input_text": input_text,
-                "input_sha256": hashlib.sha256(input_text.encode()).hexdigest(),
-                "output_id": synthesis_id,
-                "output_text": generation.text,
-                "output_sha256": hashlib.sha256(generation.text.encode()).hexdigest(),
-                "source_spans": [
-                    {
-                        "block_id": item["block"]["block_id"],
-                        "start": item["start"],
-                        "end": item["end"],
-                    }
-                    for item in batch
-                ],
-                "provider_response_id": generation.response_id,
-                "model": generation.model,
-                "usage": generation.usage,
-                "status": generation.status,
+    if config.synthesis_mode == "model":
+        for index, batch in enumerate(batches):
+            input_text = _synthesis_input(batch)
+            generation = generator.generate(
+                stage="synthesis",
+                instructions=SYNTHESIS_INSTRUCTIONS,
+                input_text=input_text,
+                max_output_tokens=config.synthesis_max_output_tokens,
+            )
+            generations.append(generation)
+            source_ids = list(
+                dict.fromkeys(item["block"]["block_id"] for item in batch)
+            )
+            synthesis_id = f"synthesis:{execution_id}:{index}"
+            synthesis_node = {
+                "synthesis_id": synthesis_id,
+                "text": generation.text,
+                "source_block_ids": source_ids,
             }
-        )
-        output_chunks = []
-        for chunk_index, (start, end, text) in enumerate(
-            _chunk_text(generation.text, config.chunk_chars, config.chunk_overlap_chars)
-        ):
-            referenced = [item for item in SOURCE_PATTERN.findall(text) if item in source_ids]
-            chunk_sources = list(dict.fromkeys(referenced)) or source_ids
-            chunk = {
-                "chunk_id": f"chunk:{execution_id}:{index}:{chunk_index}",
-                "parent_synthesis_id": synthesis_id,
-                "source_block_ids": chunk_sources,
-                "lineage_mode": (
-                    "explicit_source_markers" if referenced else "synthesis_batch_fallback"
-                ),
-                "start": start,
-                "end": end,
-                "text": text,
-            }
-            chunks.append(chunk)
-            output_chunks.append(chunk)
-        trace.append(
-            {
-                "stage": "chunking",
-                "input_ids": [synthesis_id],
-                "input_text": generation.text,
-                "output": output_chunks,
-            }
-        )
+            synthesized.append(synthesis_node)
+            trace.append(
+                {
+                    "stage": "synthesis",
+                    "input_ids": source_ids,
+                    "input_text": input_text,
+                    "input_sha256": hashlib.sha256(input_text.encode()).hexdigest(),
+                    "output_id": synthesis_id,
+                    "output_text": generation.text,
+                    "output_sha256": hashlib.sha256(
+                        generation.text.encode()
+                    ).hexdigest(),
+                    "source_spans": [
+                        {
+                            "block_id": item["block"]["block_id"],
+                            "start": item["start"],
+                            "end": item["end"],
+                        }
+                        for item in batch
+                    ],
+                    "provider_response_id": generation.response_id,
+                    "model": generation.model,
+                    "usage": generation.usage,
+                    "status": generation.status,
+                }
+            )
+            output_chunks = []
+            for chunk_index, (start, end, text) in enumerate(
+                _chunk_text(
+                    generation.text, config.chunk_chars, config.chunk_overlap_chars
+                )
+            ):
+                referenced = [
+                    item for item in SOURCE_PATTERN.findall(text) if item in source_ids
+                ]
+                chunk_sources = list(dict.fromkeys(referenced)) or source_ids
+                chunk = {
+                    "chunk_id": f"chunk:{execution_id}:{index}:{chunk_index}",
+                    "parent_synthesis_id": synthesis_id,
+                    "source_block_ids": chunk_sources,
+                    "lineage_mode": (
+                        "explicit_source_markers"
+                        if referenced
+                        else "synthesis_batch_fallback"
+                    ),
+                    "start": start,
+                    "end": end,
+                    "text": text,
+                }
+                chunks.append(chunk)
+                output_chunks.append(chunk)
+            trace.append(
+                {
+                    "stage": "chunking",
+                    "input_ids": [synthesis_id],
+                    "input_text": generation.text,
+                    "output": output_chunks,
+                }
+            )
+    else:
+        for index, block in enumerate(payload["blocks"]):
+            source_id = block["block_id"]
+            text = block["text"]
+            synthesis_id = f"passthrough:{execution_id}:{index}"
+            synthesized.append(
+                {
+                    "synthesis_id": synthesis_id,
+                    "text": text,
+                    "source_block_ids": [source_id],
+                }
+            )
+            trace.append(
+                {
+                    "stage": "passthrough",
+                    "input_ids": [source_id],
+                    "input_text": text,
+                    "input_sha256": hashlib.sha256(text.encode()).hexdigest(),
+                    "output_id": synthesis_id,
+                    "output_text": text,
+                    "output_sha256": hashlib.sha256(text.encode()).hexdigest(),
+                    "source_spans": [
+                        {"block_id": source_id, "start": 0, "end": len(text)}
+                    ],
+                    "transform_version": PASSTHROUGH_VERSION,
+                }
+            )
+            output_chunks = []
+            for chunk_index, (start, end, chunk_text) in enumerate(
+                _chunk_text(text, config.chunk_chars, config.chunk_overlap_chars)
+            ):
+                chunk = {
+                    "chunk_id": f"chunk:{execution_id}:{index}:{chunk_index}",
+                    "parent_synthesis_id": synthesis_id,
+                    "source_block_ids": [source_id],
+                    "lineage_mode": "deterministic_passthrough",
+                    "start": start,
+                    "end": end,
+                    "text": chunk_text,
+                }
+                chunks.append(chunk)
+                output_chunks.append(chunk)
+            trace.append(
+                {
+                    "stage": "chunking",
+                    "input_ids": [synthesis_id],
+                    "input_text": text,
+                    "output": output_chunks,
+                }
+            )
     if not chunks:
-        raise PipelineError("Synthesis produced no searchable chunks")
+        raise PipelineError("Pipeline produced no searchable chunks")
 
     answers = []
     for question in payload["questions"]:
@@ -685,21 +1025,32 @@ def run_pipeline(
     code_provenance = _code_provenance()
     metadata = {
         "status": "completed",
-        "execution_mode": getattr(generator, "execution_mode", "test_or_custom_generator"),
+        "execution_mode": getattr(
+            generator, "execution_mode", "test_or_custom_generator"
+        ),
         "pipeline_execution_id": execution_id,
         "provider": config.provider,
         "requested_model": config.model,
         "response_models": sorted({generation.model for generation in generations}),
         "prompt_versions": {
-            "synthesis": SYNTHESIS_PROMPT_VERSION,
+            "synthesis": (
+                SYNTHESIS_PROMPT_VERSION
+                if config.synthesis_mode == "model"
+                else PASSTHROUGH_VERSION
+            ),
             "qa": QA_PROMPT_VERSION,
         },
         "prompt_sha256": {
-            "synthesis": hashlib.sha256(SYNTHESIS_INSTRUCTIONS.encode()).hexdigest(),
+            "synthesis": (
+                hashlib.sha256(SYNTHESIS_INSTRUCTIONS.encode()).hexdigest()
+                if config.synthesis_mode == "model"
+                else None
+            ),
             "qa": hashlib.sha256(QA_INSTRUCTIONS.encode()).hexdigest(),
         },
         "applied_generation_settings": {
             "store": False,
+            "synthesis_mode": config.synthesis_mode,
             "reasoning_effort": config.reasoning_effort,
             "verbosity": config.verbosity,
             "temperature": config.temperature,
@@ -708,12 +1059,14 @@ def run_pipeline(
             "synthesis_max_output_tokens": config.synthesis_max_output_tokens,
             "qa_max_output_tokens": config.qa_max_output_tokens,
         },
-        "sdk": "openai-python",
+        "sdk": getattr(generator, "sdk", "custom-generator"),
         "sdk_version": getattr(generator, "sdk_version", None),
+        "provider_runtime": getattr(generator, "provider_runtime", {}),
         "runner_config": config.public_dict(),
         "input_sha256": digest(payload),
         **code_provenance,
         "call_count": len(generations),
+        "model_synthesis_call_count": model_synthesis_call_count,
         "usage": _usage_total(generations),
         "started_at": started_at,
         "finished_at": datetime.now(UTC).isoformat(),
@@ -726,7 +1079,9 @@ def run_pipeline(
     return {"answers": answers, "metadata": metadata, "trace": trace}
 
 
-def preflight(case: dict[str, Any], config: RunnerConfig, repeats: int) -> dict[str, Any]:
+def preflight(
+    case: dict[str, Any], config: RunnerConfig, repeats: int
+) -> dict[str, Any]:
     config.validate()
     if repeats < 1:
         raise ValueError("repeats must be positive")
@@ -736,22 +1091,28 @@ def preflight(case: dict[str, Any], config: RunnerConfig, repeats: int) -> dict[
     for repeat in range(repeats):
         for condition, repairs in CONDITIONS.items():
             payload = runner_payload(case, repairs, repeat)
-            batches = len(synthesis_batches(payload["blocks"], config.synthesis_batch_chars))
+            batches = len(
+                synthesis_batches(payload["blocks"], config.synthesis_batch_chars)
+            )
+            synthesis_calls = batches if config.synthesis_mode == "model" else 0
             questions = len(payload["questions"])
-            calls = batches + questions
+            calls = synthesis_calls + questions
             max_output_tokens = (
-                batches * config.synthesis_max_output_tokens
+                synthesis_calls * config.synthesis_max_output_tokens
                 + questions * config.qa_max_output_tokens
             )
             rows.append(
                 {
                     "repeat_id": repeat,
                     "condition": condition,
-                    "synthesis_calls": batches,
+                    "synthesis_mode": config.synthesis_mode,
+                    "synthesis_calls": synthesis_calls,
                     "qa_calls": questions,
                     "total_calls": calls,
                     "max_output_tokens": max_output_tokens,
-                    "input_characters": sum(len(block["text"]) for block in payload["blocks"]),
+                    "input_characters": sum(
+                        len(block["text"]) for block in payload["blocks"]
+                    ),
                 }
             )
             total += calls
@@ -795,7 +1156,9 @@ def main() -> None:
     report = preflight(case, config, args.repeats)
     allowed = args.max_total_calls
     report["max_total_calls"] = allowed
-    report["within_call_budget"] = allowed is None or report["estimated_model_calls"] <= allowed
+    report["within_call_budget"] = (
+        allowed is None or report["estimated_model_calls"] <= allowed
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if not report["within_call_budget"]:
         raise SystemExit(2)

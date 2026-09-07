@@ -1,7 +1,8 @@
 # 수정 효과를 측정하기 위한 첫 파일럿
 
 **현재 완료:** 실제 공개 PDF·QA 준비 코드, 숫자 오류 주입 사례, 무수정/A/B/AB
-실행·기록·평가 절차, OpenAI Responses API 합성·문자 청킹·BM25 검색·근거 기반 QA 실행기.
+실행·기록·평가 절차, 로컬 Ollama 또는 OpenAI Responses API 합성·문자 청킹·BM25
+검색·근거 기반 QA 실행기.
 
 `research/pipeline_runner.py`는 첫 실제 공급자 어댑터이고
 `research/canonical_adapter.py`는 backend `CanonicalDocument` 스냅샷을 연구 입력으로
@@ -103,10 +104,12 @@ python -m research.make_boeing_case \
 }
 ```
 
-`research/pipeline_runner.py`가 이 계약의 실제 구현이다. OpenAI Responses API로 각
-블록 배치를 합성하고, 합성 결과를 문자 단위로 겹쳐 청킹하고, BM25로 검색한 뒤 질문별
-근거 기반 QA를 수행한다. QA는 엄격한 JSON schema 출력을 요청하고 후처리에서도 다시
-검증한다. 모든 질문에 정확히 한 번씩 답해야 하며 존재하지 않는 근거 ID는 거부된다.
+`research/pipeline_runner.py`가 이 계약의 실제 구현이다. `synthesis_mode=model`은
+OpenAI Responses API 또는 로컬 Ollama로 각 블록 배치를 합성하고,
+`synthesis_mode=passthrough`는 원문 블록을 그대로 사용한다. 이후 문자 단위 중첩 청킹,
+BM25 검색, 질문별 근거 기반 QA를 수행한다. QA는 검색된 청크 ID만 허용하는 JSON schema
+출력을 요청하고 후처리에서도 다시 검증한다. 모든 질문에 정확히 한 번씩 답해야 하며
+존재하지 않는 근거 ID는 거부된다.
 
 각 실행에는 다음이 저장된다.
 
@@ -123,11 +126,50 @@ python -m research.make_boeing_case \
 
 ### 설정과 호출량 사전 확인
 
+로컬 실행은 `research/runner.ollama.example.json`, OpenAI 실행은
 `research/runner.example.json`을 복사해 추적되지 않는 `research/work/runner.json`에서
-모델과 URL, timeout, 재시도, 합성 배치, 청크, 검색, 출력 토큰 상한을 바꾼다. API 키
-값은 JSON에 쓰지 않고 `api_key_env`가 가리키는 환경변수에만 둔다. 같은 항목의
+모델과 URL, timeout, 재시도, 합성 배치, 청크, 검색, 출력 토큰 상한을 바꾼다. OpenAI
+API 키 값은 JSON에 쓰지 않고 `api_key_env`가 가리키는 환경변수에만 둔다. 같은 항목의
 `RESEARCH_*` 환경변수는 JSON보다 우선한다. `temperature`와 `top_p`는 동시에 설정할
 수 없고, 모델이 지원하지 않는 항목은 `null`로 두어 요청에서 제외한다.
+
+### 로컬 Ollama 실행
+
+Ollama provider는 문서가 외부 host로 전달되지 않도록 loopback HTTP 주소만 허용한다.
+API 키는 필요하지 않으며 실행 시 Ollama 버전, 설치 모델 digest, parameter size와
+quantization을 provenance에 기록한다. 먼저 서버와 모델을 확인한다.
+
+```bash
+ollama serve
+ollama list
+```
+
+모델 호출 없는 사전 점검과 실제 실행은 아래 설정을 사용한다.
+로컬 예시는 `synthesis_mode=passthrough`로 원문 블록을 결정적으로 청크화하고 QA만
+Ollama에서 실행한다. 따라서 입력 텍스트, 블록 ID, 페이지·좌표 계보는 그대로 남고
+모델이 문서를 재작성하지 않는다. 이는 모델 합성을 사용하는 OpenAI 예시와 다른
+탐색 실행 조건이므로 두 결과를 동일 조건처럼 비교하면 안 된다.
+
+```bash
+python3 -m research.pipeline_runner preflight \
+  --case research/work/boeing-case.json \
+  --config research/runner.ollama.example.json \
+  --repeats 1 --max-total-calls 35
+
+python3 -m research.pilot run \
+  --case research/work/boeing-case.json \
+  --out research/work/boeing-ollama-run-004 \
+  --repeats 1 --timeout 7200 \
+  -- python3 -m research.pipeline_runner run \
+    --config research/runner.ollama.example.json
+```
+
+출력 디렉터리는 덮어쓰지 않으므로 재실행할 때마다 새 번호를 사용한다.
+
+`temperature=0`도 완전한 결정성을 보증하지 않는다. 모델 tag는 바뀔 수 있으므로 결과의
+`provider_runtime.model_digest`를 함께 비교해야 한다.
+
+### OpenAI Responses API 실행
 
 기본 예시는 공식 문서상 Responses API, reasoning effort `none`~`max`, structured
 outputs를 지원하는 `gpt-5.6-terra`를 사용한다. 계정 접근성과 가격은 별도로 확인해야

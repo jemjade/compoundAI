@@ -42,7 +42,12 @@ def case():
             }
         ],
         "questions": [
-            {"question_id": "q1", "document_id": "d", "question": "A?", "answer": "DO_NOT_SEND"},
+            {
+                "question_id": "q1",
+                "document_id": "d",
+                "question": "A?",
+                "answer": "DO_NOT_SEND",
+            },
             {"question_id": "q2", "document_id": "d", "question": "B?"},
         ],
         "repairs": [
@@ -239,7 +244,8 @@ def test_runner_executes_both_no_change_conditions_without_reuse(tmp_path, case)
 def test_missing_answers_and_failed_runner_are_not_scored(tmp_path, case):
     with pytest.raises(ValueError):
         validate_response(
-            {"answers": [{"question_id": "q1", "answer": "x"}]}, runner_payload(case, (), 0)
+            {"answers": [{"question_id": "q1", "answer": "x"}]},
+            runner_payload(case, (), 0),
         )
     with pytest.raises(ValueError, match="nonempty"):
         validate_response(
@@ -281,3 +287,16 @@ def test_timeout_marks_run_failed(monkeypatch, tmp_path, case):
     manifest = json.loads((output / "manifest.json").read_text())
     assert manifest["status"] == "failed"
     assert manifest["error_type"] == "TimeoutExpired"
+
+
+def test_keyboard_interrupt_marks_run_interrupted(monkeypatch, tmp_path, case):
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(subprocess, "run", interrupt)
+    output = tmp_path / "interrupted"
+    with pytest.raises(KeyboardInterrupt):
+        run_case(case, ["runner"], output)
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["status"] == "interrupted"
+    assert manifest["error_type"] == "KeyboardInterrupt"

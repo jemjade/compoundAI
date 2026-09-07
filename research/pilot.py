@@ -89,8 +89,12 @@ def select_questions(
         if row["doc_name"] not in documents:
             continue
         evidence = row.get("evidence", [])
-        if not evidence or any(evidence_doc(item) != row["doc_name"] for item in evidence):
-            excluded.append({"question_id": question_id, "reason": "not_single_document"})
+        if not evidence or any(
+            evidence_doc(item) != row["doc_name"] for item in evidence
+        ):
+            excluded.append(
+                {"question_id": question_id, "reason": "not_single_document"}
+            )
             continue
         chosen.append(row)
     missing = set(documents) - {row["doc_name"] for row in chosen}
@@ -104,7 +108,9 @@ def prepare(source: Path, out: Path, documents: list[str]) -> dict[str, Any]:
     import pypdf
 
     if out.exists():
-        raise ValueError("Output already exists; use a new directory to preserve the snapshot")
+        raise ValueError(
+            "Output already exists; use a new directory to preserve the snapshot"
+        )
     if len(documents) != len(set(documents)):
         raise ValueError("Document IDs must be unique")
     question_path = source / "data/financebench_open_source.jsonl"
@@ -161,7 +167,9 @@ def prepare(source: Path, out: Path, documents: list[str]) -> dict[str, Any]:
             doc = evidence_doc(item)
             page = item["evidence_page_num"]
             if type(page) is not int or not 0 <= page < page_counts[doc]:
-                raise ValueError(f"Invalid ZERO-based evidence page for {row['financebench_id']}")
+                raise ValueError(
+                    f"Invalid ZERO-based evidence page for {row['financebench_id']}"
+                )
             evidence.append(
                 {
                     "block_id": f"{doc}:p{page + 1}",
@@ -213,10 +221,14 @@ def validate_case(case: dict[str, Any]) -> None:
         raise ValueError("A case needs blocks and questions")
     block_ids = [block["block_id"] for block in blocks]
     question_ids = [row["question_id"] for row in questions]
-    if len(set(block_ids)) != len(block_ids) or len(set(question_ids)) != len(question_ids):
+    if len(set(block_ids)) != len(block_ids) or len(set(question_ids)) != len(
+        question_ids
+    ):
         raise ValueError("Duplicate block or question identifiers")
     for block in blocks:
-        if not isinstance(block["text"], str) or not isinstance(block["document_id"], str):
+        if not isinstance(block["text"], str) or not isinstance(
+            block["document_id"], str
+        ):
             raise ValueError("Invalid block text or document identifier")
         if type(block["page_number"]) is not int or block["page_number"] < 1:
             raise ValueError("Page numbers are one-based positive integers")
@@ -240,21 +252,32 @@ def validate_case(case: dict[str, Any]) -> None:
             raise ValueError("Unknown repair block")
         text = mapping[repair["block_id"]]["text"]
         start, end = repair["start"], repair["end"]
-        if type(start) is not int or type(end) is not int or not 0 <= start < end <= len(text):
+        if (
+            type(start) is not int
+            or type(end) is not int
+            or not 0 <= start < end <= len(text)
+        ):
             raise ValueError("Repair offsets must refer to a nonempty original span")
         if text[start:end] != repair["before"]:
             raise ValueError("Repair before-text does not match the frozen base input")
         if not isinstance(repair["after"], str) or repair["after"] == repair["before"]:
             raise ValueError("A repair must change the selected text")
-        if not isinstance(repair.get("source_note"), str) or not repair["source_note"].strip():
+        if (
+            not isinstance(repair.get("source_note"), str)
+            or not repair["source_note"].strip()
+        ):
             raise ValueError("Record how the source was checked in source_note")
         for previous_start, previous_end in intervals[repair["block_id"]]:
             if max(previous_start, start) < min(previous_end, end):
-                raise ValueError("Overlapping patches have ambiguous simultaneous semantics")
+                raise ValueError(
+                    "Overlapping patches have ambiguous simultaneous semantics"
+                )
         intervals[repair["block_id"]].append((start, end))
 
 
-def repaired_blocks(case: dict[str, Any], selected: tuple[str, ...]) -> list[dict[str, Any]]:
+def repaired_blocks(
+    case: dict[str, Any], selected: tuple[str, ...]
+) -> list[dict[str, Any]]:
     validate_case(case)
     if set(selected) - {"A", "B"}:
         raise ValueError("Unknown repair candidate")
@@ -265,14 +288,20 @@ def repaired_blocks(case: dict[str, Any], selected: tuple[str, ...]) -> list[dic
         if repair["candidate_id"] in selected:
             grouped[repair["block_id"]].append(repair)
     for block in blocks:
-        for repair in sorted(grouped[block["block_id"]], key=lambda r: r["start"], reverse=True):
+        for repair in sorted(
+            grouped[block["block_id"]], key=lambda r: r["start"], reverse=True
+        ):
             block["text"] = (
-                block["text"][: repair["start"]] + repair["after"] + block["text"][repair["end"] :]
+                block["text"][: repair["start"]]
+                + repair["after"]
+                + block["text"][repair["end"] :]
             )
     return blocks
 
 
-def runner_payload(case: dict[str, Any], selected: tuple[str, ...], repeat: int) -> dict[str, Any]:
+def runner_payload(
+    case: dict[str, Any], selected: tuple[str, ...], repeat: int
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "repeat_id": repeat,
@@ -298,7 +327,9 @@ def injected_case(case: dict[str, Any]) -> dict[str, Any]:
     inverse = []
     for edit in case["repairs"]:
         if not edit["after"]:
-            raise ValueError("Injection must leave a nonempty span to anchor its inverse repair")
+            raise ValueError(
+                "Injection must leave a nonempty span to anchor its inverse repair"
+            )
         shift = sum(
             len(other["after"]) - len(other["before"])
             for other in case["repairs"]
@@ -352,11 +383,17 @@ def validate_response(response: dict[str, Any], payload: dict[str, Any]) -> None
 
 
 def run_case(
-    case: dict[str, Any], command: list[str], out: Path, repeats: int = 2, timeout: float = 120
+    case: dict[str, Any],
+    command: list[str],
+    out: Path,
+    repeats: int = 2,
+    timeout: float = 120,
 ) -> dict[str, Any]:
     validate_case(case)
     if not command or repeats < 1 or timeout <= 0 or not math.isfinite(timeout):
-        raise ValueError("An executable runner, positive repeats and finite timeout are required")
+        raise ValueError(
+            "An executable runner, positive repeats and finite timeout are required"
+        )
     out.mkdir(parents=True, exist_ok=False)
     manifest = {
         "schema_version": 1,
@@ -384,7 +421,10 @@ def run_case(
                 random.Random(f"{digest(case)}:{repeat}").shuffle(conditions)
                 for condition in conditions:
                     payload = runner_payload(case, CONDITIONS[condition], repeat)
-                    manifest["active_call"] = {"repeat_id": repeat, "condition": condition}
+                    manifest["active_call"] = {
+                        "repeat_id": repeat,
+                        "condition": condition,
+                    }
                     write_json(out / "manifest.json", manifest)
                     result = subprocess.run(
                         command,
@@ -395,11 +435,15 @@ def run_case(
                         check=False,
                     )
                     if result.returncode:
-                        raise RuntimeError(f"Runner exited with code {result.returncode}")
+                        raise RuntimeError(
+                            f"Runner exited with code {result.returncode}"
+                        )
                     response = json.loads(result.stdout)
                     validate_response(response, payload)
                     metadata = response.get("metadata", {})
-                    usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
+                    usage = (
+                        metadata.get("usage", {}) if isinstance(metadata, dict) else {}
+                    )
                     record = {
                         "execution_id": str(uuid4()),
                         "case_id": case["case_id"],
@@ -412,7 +456,11 @@ def run_case(
                     stream.write(json.dumps(record, ensure_ascii=False) + "\n")
                     stream.flush()
                     manifest["completed_calls"] += 1
-                    model_calls = metadata.get("call_count", 0) if isinstance(metadata, dict) else 0
+                    model_calls = (
+                        metadata.get("call_count", 0)
+                        if isinstance(metadata, dict)
+                        else 0
+                    )
                     if type(model_calls) is int and model_calls >= 0:
                         manifest["completed_model_calls"] += model_calls
                     for key in ("input_tokens", "output_tokens", "total_tokens"):
@@ -422,6 +470,10 @@ def run_case(
                     write_json(out / "manifest.json", manifest)
         manifest["status"] = "complete"
         manifest.pop("active_call", None)
+    except KeyboardInterrupt:
+        manifest["status"] = "interrupted"
+        manifest["error_type"] = "KeyboardInterrupt"
+        raise
     except Exception as error:
         manifest["status"] = "failed"
         manifest["error_type"] = type(error).__name__
@@ -444,7 +496,9 @@ def load_complete_run(run: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         raise ValueError("Frozen case changed after execution")
     records = read_jsonl(run / "records.jsonl")
     expected = {
-        (repeat, condition) for repeat in range(manifest["repeats"]) for condition in CONDITIONS
+        (repeat, condition)
+        for repeat in range(manifest["repeats"])
+        for condition in CONDITIONS
     }
     actual = [(r["repeat_id"], r["condition"]) for r in records]
     if len(actual) != len(set(actual)) or set(actual) != expected:
@@ -452,7 +506,9 @@ def load_complete_run(run: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     if len({r["execution_id"] for r in records}) != len(records):
         raise ValueError("Duplicate execution IDs")
     for record in records:
-        payload = runner_payload(case, CONDITIONS[record["condition"]], record["repeat_id"])
+        payload = runner_payload(
+            case, CONDITIONS[record["condition"]], record["repeat_id"]
+        )
         if digest(payload) != record["input_sha256"]:
             raise ValueError("Recorded input hash does not match the frozen case")
         if digest(record["response"]) != record["output_sha256"]:
@@ -461,7 +517,9 @@ def load_complete_run(run: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return case, records
 
 
-def judgment_template(run: Path, gold_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def judgment_template(
+    run: Path, gold_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     case, records = load_complete_run(run)
     gold = {row["question_id"]: row for row in gold_rows}
     if len(gold) != len(gold_rows):
@@ -501,7 +559,9 @@ def score(run: Path, judgments: list[dict[str, Any]]) -> dict[str, Any]:
         for answer in record["response"]["answers"]
     }
     if set(mapped) != expected_ids:
-        raise ValueError("Every prediction needs exactly one judgment; extra labels are rejected")
+        raise ValueError(
+            "Every prediction needs exactly one judgment; extra labels are rejected"
+        )
     if any(
         type(row.get("correct")) is not bool or not str(row.get("judge_id", "")).strip()
         for row in judgments
@@ -510,7 +570,9 @@ def score(run: Path, judgments: list[dict[str, Any]]) -> dict[str, Any]:
     correctness = {}
     for record in records:
         correctness[(record["repeat_id"], record["condition"])] = {
-            answer["question_id"]: mapped[judgment_id(record, answer["question_id"])]["correct"]
+            answer["question_id"]: mapped[judgment_id(record, answer["question_id"])][
+                "correct"
+            ]
             for answer in record["response"]["answers"]
         }
     output_rows = []
@@ -587,7 +649,11 @@ def main() -> None:
         parser.error("Output already exists; use a new path")
     if args.action == "prepare":
         result = prepare(args.source, args.out, args.documents)
-        print(json.dumps({k: result[k] for k in ("question_count", "block_count", "documents")}))
+        print(
+            json.dumps(
+                {k: result[k] for k in ("question_count", "block_count", "documents")}
+            )
+        )
     elif args.action == "make-case":
         case = {
             "schema_version": 1,

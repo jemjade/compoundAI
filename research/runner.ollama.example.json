@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "provider": "ollama_generate",
+  "model": "gemma3:4b",
+  "base_url": "http://127.0.0.1:11434",
+  "api_key_env": null,
+  "timeout_seconds": 900,
+  "max_retries": 0,
+  "synthesis_mode": "passthrough",
+  "synthesis_batch_chars": 90000,
+  "chunk_chars": 5000,
+  "chunk_overlap_chars": 400,
+  "retrieval_top_k": 6,
+  "synthesis_max_output_tokens": 12000,
+  "qa_max_output_tokens": 1200,
+  "reasoning_effort": null,
+  "verbosity": null,
+  "temperature": 0,
+  "top_p": null,
+  "max_calls_per_pipeline": 64,
+  "ollama_num_ctx": 65536,
+  "ollama_keep_alive": "30m"
+}
