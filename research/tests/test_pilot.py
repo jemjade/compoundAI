@@ -2,6 +2,7 @@
 
 import copy
 import json
+import subprocess
 import sys
 
 import pytest
@@ -240,9 +241,43 @@ def test_missing_answers_and_failed_runner_are_not_scored(tmp_path, case):
         validate_response(
             {"answers": [{"question_id": "q1", "answer": "x"}]}, runner_payload(case, (), 0)
         )
+    with pytest.raises(ValueError, match="nonempty"):
+        validate_response(
+            {
+                "answers": [
+                    {"question_id": "q1", "answer": ""},
+                    {"question_id": "q2", "answer": "x"},
+                ]
+            },
+            runner_payload(case, (), 0),
+        )
+    with pytest.raises(ValueError, match="completed"):
+        validate_response(
+            {
+                "answers": [
+                    {"question_id": "q1", "answer": "x"},
+                    {"question_id": "q2", "answer": "x"},
+                ],
+                "metadata": {"status": "incomplete"},
+            },
+            runner_payload(case, (), 0),
+        )
     output = tmp_path / "failed"
     with pytest.raises(RuntimeError):
         run_case(case, [sys.executable, "-c", "raise SystemExit(3)"], output)
     assert json.loads((output / "manifest.json").read_text())["status"] == "failed"
     with pytest.raises(ValueError):
         load_complete_run(output)
+
+
+def test_timeout_marks_run_failed(monkeypatch, tmp_path, case):
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=kwargs.get("args", "runner"), timeout=0.1)
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+    output = tmp_path / "timeout"
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_case(case, ["runner"], output, timeout=0.1)
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["status"] == "failed"
+    assert manifest["error_type"] == "TimeoutExpired"

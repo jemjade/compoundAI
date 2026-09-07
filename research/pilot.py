@@ -1,7 +1,7 @@
 """Prepare real PDF inputs and measure paired repairs without exposing evaluation labels.
 
-This module does not implement an LLM, estimate repairability, or run allocation policies.
-The executable runner contract is deliberately separate from reference answers and scoring.
+The executable runner contract remains separate from reference answers and scoring.  A concrete
+implementation of that contract lives in :mod:`research.pipeline_runner`.
 """
 
 from __future__ import annotations
@@ -23,6 +23,22 @@ from uuid import uuid4
 FINANCEBENCH_COMMIT = "cc39aeb4afdf33909ee1412188bf89035950c2eb"
 DEFAULT_DOCUMENTS = ["BOEING_2022_10K", "AMCOR_2023_10K", "BESTBUY_2023_10K"]
 CONDITIONS = {"baseline": (), "no_op": (), "A": ("A",), "B": ("B",), "AB": ("A", "B")}
+SAFE_BLOCK_FIELDS = (
+    "block_id",
+    "document_id",
+    "page_number",
+    "text",
+    "source_kind",
+    "run_id",
+    "canonical_block_id",
+    "block_type",
+    "reading_order",
+    "bbox",
+    "parser_name",
+    "parser_version",
+    "page_width",
+    "page_height",
+)
 
 
 def sha256(data: bytes) -> str:
@@ -99,6 +115,9 @@ def prepare(source: Path, out: Path, documents: list[str]) -> dict[str, Any]:
         if Path(document).name != document or not document:
             raise ValueError("Invalid document name")
         pdf = source / "pdfs" / f"{document}.pdf"
+        pdf_bytes = pdf.read_bytes()
+        pdf_sha256 = sha256(pdf_bytes)
+        parser_run_id = f"pypdf-{pypdf.__version__}-{pdf_sha256[:16]}"
         reader = pypdf.PdfReader(pdf)
         page_counts[document] = len(reader.pages)
         empty_pages = []
@@ -112,13 +131,18 @@ def prepare(source: Path, out: Path, documents: list[str]) -> dict[str, Any]:
                     "document_id": document,
                     "page_number": index + 1,
                     "text": text,
+                    "source_kind": "pypdf_page_text",
+                    "run_id": parser_run_id,
+                    "parser_name": "pypdf",
+                    "parser_version": pypdf.__version__,
                 }
             )
         document_records.append(
             {
                 "document_id": document,
+                "run_id": parser_run_id,
                 "pdf_path": str(pdf.resolve()),
-                "pdf_sha256": sha256(pdf.read_bytes()),
+                "pdf_sha256": pdf_sha256,
                 "page_count": len(reader.pages),
                 "empty_text_pages": empty_pages,
             }
@@ -196,6 +220,11 @@ def validate_case(case: dict[str, Any]) -> None:
             raise ValueError("Invalid block text or document identifier")
         if type(block["page_number"]) is not int or block["page_number"] < 1:
             raise ValueError("Page numbers are one-based positive integers")
+        if "source_kind" in block and block["source_kind"] not in {
+            "pypdf_page_text",
+            "canonical_parser",
+        }:
+            raise ValueError("Unknown block source_kind")
     docs = {block["document_id"] for block in blocks}
     if len(docs) != 1 or any(row["document_id"] not in docs for row in questions):
         raise ValueError("The initial paired-repair case must use one document")
@@ -230,10 +259,7 @@ def repaired_blocks(case: dict[str, Any], selected: tuple[str, ...]) -> list[dic
     if set(selected) - {"A", "B"}:
         raise ValueError("Unknown repair candidate")
     # Explicit whitelist: references, labels, and repair targets never cross this boundary.
-    blocks = [
-        {k: b[k] for k in ("block_id", "document_id", "page_number", "text")}
-        for b in case["blocks"]
-    ]
+    blocks = [{k: b[k] for k in SAFE_BLOCK_FIELDS if k in b} for b in case["blocks"]]
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for repair in case["repairs"]:
         if repair["candidate_id"] in selected:
@@ -294,6 +320,19 @@ def injected_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_response(response: dict[str, Any], payload: dict[str, Any]) -> None:
+    if not isinstance(response, dict):
+        raise ValueError("Runner output must be a JSON object")
+    metadata = response.get("metadata")
+    if metadata is not None:
+        if not isinstance(metadata, dict):
+            raise ValueError("Runner metadata must be an object")
+        if "status" in metadata and metadata["status"] != "completed":
+            raise ValueError("Runner metadata does not report a completed response")
+        if metadata.get("status", "completed") != "completed":
+            raise ValueError("Incomplete or failed model output cannot be accepted")
+        call_count = metadata.get("call_count")
+        if call_count is not None and (type(call_count) is not int or call_count < 1):
+            raise ValueError("Runner call_count must be a positive integer")
     answers = response.get("answers")
     if not isinstance(answers, list):
         raise ValueError("Runner must return an answers array")
@@ -303,8 +342,8 @@ def validate_response(response: dict[str, Any], payload: dict[str, Any]) -> None
         raise ValueError("Runner must return every question exactly once")
     known_blocks = {block["block_id"] for block in payload["blocks"]}
     for answer in answers:
-        if not isinstance(answer.get("answer"), str):
-            raise ValueError("Runner answers must be strings")
+        if not isinstance(answer.get("answer"), str) or not answer["answer"].strip():
+            raise ValueError("Runner answers must be nonempty strings")
         cited = answer.get("evidence_block_ids", [])
         if not isinstance(cited, list) or not all(isinstance(x, str) for x in cited):
             raise ValueError("Evidence IDs must be a list of strings")
@@ -328,6 +367,8 @@ def run_case(
         "repeats": repeats,
         "expected_calls": repeats * len(CONDITIONS),
         "completed_calls": 0,
+        "completed_model_calls": 0,
+        "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
         "runner_command": command,
         "timeout_seconds": timeout,
         "scoring": "not_scored; independent judgments required",
@@ -343,6 +384,8 @@ def run_case(
                 random.Random(f"{digest(case)}:{repeat}").shuffle(conditions)
                 for condition in conditions:
                     payload = runner_payload(case, CONDITIONS[condition], repeat)
+                    manifest["active_call"] = {"repeat_id": repeat, "condition": condition}
+                    write_json(out / "manifest.json", manifest)
                     result = subprocess.run(
                         command,
                         input=json.dumps(payload),
@@ -355,6 +398,8 @@ def run_case(
                         raise RuntimeError(f"Runner exited with code {result.returncode}")
                     response = json.loads(result.stdout)
                     validate_response(response, payload)
+                    metadata = response.get("metadata", {})
+                    usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
                     record = {
                         "execution_id": str(uuid4()),
                         "case_id": case["case_id"],
@@ -367,8 +412,16 @@ def run_case(
                     stream.write(json.dumps(record, ensure_ascii=False) + "\n")
                     stream.flush()
                     manifest["completed_calls"] += 1
+                    model_calls = metadata.get("call_count", 0) if isinstance(metadata, dict) else 0
+                    if type(model_calls) is int and model_calls >= 0:
+                        manifest["completed_model_calls"] += model_calls
+                    for key in ("input_tokens", "output_tokens", "total_tokens"):
+                        value = usage.get(key, 0) if isinstance(usage, dict) else 0
+                        if type(value) is int and value >= 0:
+                            manifest["usage"][key] += value
                     write_json(out / "manifest.json", manifest)
         manifest["status"] = "complete"
+        manifest.pop("active_call", None)
     except Exception as error:
         manifest["status"] = "failed"
         manifest["error_type"] = type(error).__name__
