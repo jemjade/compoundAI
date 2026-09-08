@@ -1,5 +1,63 @@
 # 수정 효과를 측정하기 위한 첫 파일럿
 
+## Dependency-aware upstream pilot v1
+
+`research/specs/experiment_spec_v1.json` is the frozen contract for the first
+selection-policy wiring experiment. It is deliberately limited to controlled numeric text spans
+from one pypdf document. It does not implement or claim multimodal evaluation, natural parser
+errors, cross-stage allocation, an output-only baseline, multiple independent documents, or a
+human-interface evaluation.
+
+The policy implementation is split at an explicit leakage boundary:
+
+- `research/allocation.py` sees corrupted blocks plus independently executed baseline/no-op traces
+  and implements Random, Uncertainty, Individual impact, and Graph-aware selection.
+- `research/allocation_pilot.py` serializes those policy inputs and selections before joining the
+  selected spans to evaluation-only ideal repair labels and launching fresh downstream reruns.
+- Every candidate costs one verification unit, including normal candidates that produce no edit.
+  The unit is not human time.
+
+Preflight the frozen two-question local experiment before making model calls:
+
+```bash
+python3 -m research.allocation_pilot preflight \
+  --case research/work/boeing-case.json \
+  --spec research/specs/experiment_spec_v1.json \
+  --config research/configs/dependency_aware_pilot_llama3_v1.json \
+  --max-total-calls 26
+```
+
+The `run` command requires a clean tracked worktree so that the committed spec and code precede
+the live artifact. Outputs belong in the ignored, append-only `research/work/` directory. After a
+run, create a blind judgment template, apply the narrow deterministic pilot judge, and score it:
+
+```bash
+python3 -m research.allocation_pilot run \
+  --case research/work/boeing-case.json \
+  --spec research/specs/experiment_spec_v1.json \
+  --config research/configs/dependency_aware_pilot_llama3_v1.json \
+  --out research/work/dependency-aware-pilot-v1-run-001 \
+  --max-total-calls 26
+
+python3 -m research.allocation_pilot judge-template \
+  --run research/work/dependency-aware-pilot-v1-run-001 \
+  --gold research/work/financebench-pilot/evaluation/gold.jsonl \
+  --out research/work/dependency-aware-pilot-v1-run-001/judgments.template.jsonl
+
+python3 -m research.allocation_pilot auto-judge \
+  --template research/work/dependency-aware-pilot-v1-run-001/judgments.template.jsonl \
+  --out research/work/dependency-aware-pilot-v1-run-001/judgments.jsonl
+
+python3 -m research.allocation_pilot score \
+  --run research/work/dependency-aware-pilot-v1-run-001 \
+  --judgments research/work/dependency-aware-pilot-v1-run-001/judgments.jsonl \
+  --out research/work/dependency-aware-pilot-v1-run-001/summary.json
+```
+
+The deterministic judge requires all reference numbers and a gold evidence block citation. It is
+a strict plumbing evaluator, not a validated general FinanceBench judge; alternate evidence pages
+must be reviewed manually.
+
 **현재 완료:** 실제 공개 PDF·QA 준비 코드, 숫자 오류 주입 사례, 무수정/A/B/AB
 실행·기록·평가 절차, 로컬 Ollama 또는 OpenAI Responses API 합성·문자 청킹·BM25
 검색·근거 기반 QA 실행기.
