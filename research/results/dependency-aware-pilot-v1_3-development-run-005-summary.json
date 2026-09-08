@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "run_id": "e1e66542-84cb-4b3b-8380-2e683bff3cfe",
+  "status": "COMPLETE_DEVELOPMENT_DIAGNOSTIC_NOT_POLICY_VALIDATION",
+  "git_commit_at_live_run": "0cbd0ac2a2c1d9e355008e09f18f53668617c9aa",
+  "model": {
+    "provider": "local Ollama",
+    "ollama_version": "0.30.6",
+    "name": "llama3:latest",
+    "digest": "365c0bd3c000a25d28ddbf732fe1c6add414de7275464c4e4d1c3b5fcb5d8ad1",
+    "parameter_size": "8.0B",
+    "quantization": "Q4_0",
+    "second_completion_model_available": false
+  },
+  "pipeline": {
+    "synthesis": "deterministic passthrough",
+    "retrieval": "document-isolated BM25 top-k=6 or full-page oracle evidence",
+    "qa_contract": "quantitative_v2",
+    "temperature": 0,
+    "context_tokens": 8192,
+    "qa_max_output_tokens": 700,
+    "fresh_pipeline_executions": 14,
+    "completed_model_calls": 18,
+    "external_paid_calls": 0
+  },
+  "development_set": {
+    "documents": ["AMCOR_2023_10K", "BESTBUY_2023_10K", "AMD_2022_10K"],
+    "question_count": 7,
+    "calculation_or_quantitative_comparison_questions": 5,
+    "direct_extraction_or_signed_selection_questions": 2,
+    "primary_denominator": 6,
+    "primary_exclusion": "financebench_id_00685 retained but excluded from unconditional primary accuracy because its historical wording needs three years while the benchmark explanation uses only two"
+  },
+  "clean_qa": {
+    "general_bm25": {
+      "conclusion_correct": {"count": 3, "denominator": 7},
+      "stated_numeric_accuracy": {"all_correct": 2, "incorrect": 0, "no_numbers": 5},
+      "required_explanation": {"complete": 2, "not_required_direct": 1, "missing_or_incomplete": 4},
+      "valid_required_evidence_retrieved": {"count": 2, "denominator": 7, "question_ids": ["financebench_id_00563", "financebench_id_01275"]},
+      "evidence_supported_overall_task_correct": {"count": 2, "denominator_all": 7, "denominator_primary": 6},
+      "qa_contract_all_fields_nonempty": {"count": 1, "denominator": 7}
+    },
+    "oracle_full_page": {
+      "conclusion_correct": {"count": 3, "denominator": 7},
+      "stated_numeric_accuracy": {"all_correct": 2, "incorrect": 4, "no_numbers": 1},
+      "required_explanation": {"complete": 1, "not_required_direct": 1, "present_but_invalid": 5},
+      "required_evidence_available": {"count": 7, "denominator": 7},
+      "evidence_supported_overall_task_correct": {"count": 2, "denominator_all": 7, "denominator_primary": 6},
+      "qa_contract_all_fields_nonempty": {"count": 5, "denominator": 7}
+    },
+    "interpretation": "oracle evidence increased output-field completion from 1/7 to 5/7 but did not improve overall task correctness beyond 2/7; five oracle answers misinterpreted or miscomputed sufficient evidence"
+  },
+  "controlled_repair": {
+    "question_id": "financebench_id_00222",
+    "expected_direct_route_ratios": {"damaged": 0.3113518606, "A_only": 0.9393939394, "B_only": 0.9393939394, "AB": 1.5674360182},
+    "clean_oracle_overall_correct": false,
+    "states": {
+      "damaged": {"conclusion_correct": true, "numeric": "incorrect", "overall_correct": false},
+      "A_only": {"conclusion_correct": true, "numeric": "incorrect", "overall_correct": false},
+      "B_only": {"conclusion_correct": true, "numeric": "incorrect", "overall_correct": false},
+      "AB": {"conclusion_correct": true, "numeric": "not_stated", "overall_correct": false}
+    },
+    "fully_correct_states_including_separate_clean_oracle": 0,
+    "recovered_by_A": false,
+    "recovered_by_B": false,
+    "recovered_by_AB": false,
+    "alternate_route_observed": "damaged and B-only outputs used total current assets, but mislabeled the resulting current ratio as quick ratio and reported 2.38 rather than about 2.36",
+    "claim": "no measurable full-answer repair effect; conclusion-only stability is not verification recovery"
+  },
+  "policy_visible_feature_probe": {
+    "candidate_count": 11870,
+    "controlled_error_candidate_inclusion": {"count": 2, "denominator": 2},
+    "actual_non_gold_features": [
+      "pypdf 6.10.0 versus PyMuPDF 1.28.2 per-page normalized numeric-token count disagreement",
+      "PyMuPDF numeric word bounding box/block/line coordinates when matched by value and occurrence",
+      "human-configured AMD p56 total-current-assets component identity residual"
+    ],
+    "controlled_error_features": {"parser_disagreement": 1.0, "normalized_constraint_residual": 0.53265863, "anomaly_score": 0.85979759, "structural_reach": 0.0},
+    "unique_feature_vectors": 8,
+    "unique_individual_scores": 3,
+    "all_candidates_tied_with_at_least_one_other_on_feature_vector": true,
+    "all_candidates_tied_with_at_least_one_other_on_individual_score": true,
+    "individual_selected_errors": 0,
+    "graph_selected_errors": 0,
+    "individual_graph_selected_sets_equal": false,
+    "selected_set_intersection": 1,
+    "selected_set_size_each": 2,
+    "id_tie_break_selection_count": {"individual": 2, "graph": 2},
+    "graph_behavior": "after the shared first AMCOR p86 candidate, Graph-aware chose an AMD p102 candidate with a different estimated question descendant while Individual chose another AMCOR p86 candidate",
+    "limitations": [
+      "BM25 gave both injected AMD p56 candidates zero downstream reach, so their high anomaly scores became zero individual impact",
+      "selected parser disagreements were tokenizer-boundary artifacts such as 12-month, €300, and Exhibit 10.16(a), demonstrating low specificity",
+      "the clean-PDF secondary parser trivially disagrees with post-extraction controlled damage; this does not establish natural parser-error discrimination"
+    ]
+  },
+  "failed_attempt": {
+    "path": "research/work/dependency-aware-pilot-v1_3-development-run-004",
+    "attempted_local_model_calls": 1,
+    "reason": "empty quantitative_explanation caused the old parser to abort before raw response serialization",
+    "raw_response_available": false,
+    "accounting": "preserved failure amendment records the limitation; cumulative attempted calls across run-004 and run-005 are 19"
+  },
+  "preservation": {
+    "complete_raw_path": "research/work/dependency-aware-pilot-v1_3-development-run-005",
+    "file_count_excluding_preservation_manifest": 13,
+    "total_bytes_excluding_preservation_manifest": 47497716,
+    "preservation_manifest_sha256": "935dc06a73d19eabd24fe4e5c87be5f01e863e5ef72ca726049ff91f825c18bf",
+    "independent_physical_backup_verified": false
+  },
+  "independent_evaluation": {
+    "protocol_status": "FROZEN_AND_SOURCE_SNAPSHOT_PREPARED_NOT_READY_TO_RUN",
+    "documents": ["PFIZER_2021_10K", "PEPSICO_2022_10K", "AES_2022_10K"],
+    "selected_questions": 9,
+    "source_snapshot_blocks": 903,
+    "source_snapshot_path": "research/work/independent-evaluation-v1-source-snapshot",
+    "source_snapshot_preservation_manifest_sha256": "19b150edc081858c46bb4e7baa7a81cd99d97a7c4bbca5c6bb90051601cffb57",
+    "remaining_gate": "audit all nine reference/evidence pairs and freeze injection/candidate manifests; confirm nonzero varied dependency structure before performance execution"
+  },
+  "largest_blocker": "the current QA stage does not reliably interpret and calculate even when given the exact sufficient page (2/7 overall correct), so downstream repair effects cannot yet be measured credibly"
+}

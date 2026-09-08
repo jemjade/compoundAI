@@ -410,3 +410,30 @@ Canonical ID·좌표 보존을 검증한다. 테스트 안의 답변은 전부 �
 5. 그래프 영향 범위와 실제 복구를 비교할 연구 설계, 비용 가정, HCI 기여 및 선행연구 대조 완성.
 
 본 파일럿만으로 CHI 제출 준비나 채택 가능성을 주장하지 않는다. 지금 초록의 완료형 실험 주장은 실제 결과가 확보된 범위에 맞춰 다시 정리해야 한다.
+
+## v1.3 다문서 개발 실행 가능성 진단
+
+v1.3은 Boeing 프롬프트·모델 튜닝을 종료하고 AMCOR, Best Buy, AMD의 7개 개발 문항으로
+clean 일반 검색과 full-page oracle evidence를 분리한다. 동결 명세는
+`research/specs/experiment_spec_v1_3.json`, 실행기는 `research/development_v1_3.py`, 소스
+대조 판정기는 `research/evaluate_development_v1_3.py`다. PyMuPDF는 실제 두 번째 텍스트
+추출과 단어 좌표 관측에만 사용하며 VLM이나 자동 표 파서로 부르지 않는다.
+
+```bash
+uv run --with-requirements research/requirements.txt \
+  python -m research.development_v1_3 preflight \
+  --data research/work/financebench-development-v1_3 \
+  --spec research/specs/experiment_spec_v1_3.json \
+  --config research/configs/dependency_aware_pilot_llama3_development_v1_3.json \
+  --max-calls 18
+```
+
+완료된 개발 결과는
+`research/results/dependency-aware-pilot-v1_3-development-run-005-summary.json`과
+`research/reports/dependency-aware-pilot-v1_3-development-run-005.md`에 있다. 일반 검색과
+oracle 모두 완전 정답 2/7이었고 통제 AMD quick-ratio 수정은 완전 복구 0건이었다. 이는
+실행·실패 위치·특징 관측 경로를 확인한 결과이지 정책 우수성 결과가 아니다.
+
+독립 평가 문서/규칙은 `research/specs/independent_evaluation_protocol_v1.json`에 성능
+확인 전에 고정되어 있다. 소스 스냅샷까지만 준비됐으며 reference audit, injection
+manifest, dependency-structure gate를 통과하기 전에는 정책 성능 실행을 시작하지 않는다.

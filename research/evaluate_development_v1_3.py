@@ -115,6 +115,8 @@ def _aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def evaluate(run_dir: Path, judgments_path: Path, out: Path) -> dict[str, Any]:
+    if out.exists():
+        raise ValueError("Evaluation output exists; use a new append-only path")
     manifest = _load(run_dir / "manifest.json")
     if manifest.get("status") != "complete" or manifest.get("completed_model_calls") != 18:
         raise ValueError("Only the complete frozen v1.3 run may be evaluated")
