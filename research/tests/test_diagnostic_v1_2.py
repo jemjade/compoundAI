@@ -48,11 +48,12 @@ def test_gross_evaluator_separates_correct_conclusion_from_missing_numbers():
 
 
 def test_gross_evaluator_checks_negative_phrase_before_improve_substring():
-    result = _gross_evaluation(
-        _answer("The gross margin profile is not improving as of FY2022."),
-        "repaired",
-    )
-    assert result["conclusion_correctness"] == "INCORRECT"
+    for text in (
+        "The gross margin profile is not improving as of FY2022.",
+        "The gross margin profile does not appear to be improving as of FY2022.",
+    ):
+        result = _gross_evaluation(_answer(text), "repaired")
+        assert result["conclusion_correctness"] == "INCORRECT"
 
 
 def test_gross_evaluator_accepts_equivalent_margin_explanation_without_all_gold_numbers():

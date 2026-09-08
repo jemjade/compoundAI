@@ -16,3 +16,9 @@ predefined dimension mechanics, adds regression tests, and writes to a new appen
 `adjudication-v1_2_1/` directory. This correction is disclosed because it was made after observing
 the first evaluation output. The raw live outputs are unchanged and no favorable cases are added,
 removed, or rerun.
+
+After v1.2.1 was rendered, a second negation form in the frozen output—`does not appear to be
+improving`—showed that the first fix covered only the exact phrase `not improving`. Adjudication
+v1.2.2 expands the same negative-before-positive precedence rule to bounded intervening words and
+writes to `adjudication-v1_2_2/`. Both earlier evaluations remain preserved. This is another
+post-run evaluator correction, not a model rerun or prompt change.

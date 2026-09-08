@@ -461,8 +461,13 @@ def _gross_evaluation(answer: dict[str, Any], source_state: str) -> dict[str, An
     text = answer["answer"]
     lowered = text.lower()
     insufficient = "insufficient" in lowered or "not enough" in lowered
-    direction_incorrect = not insufficient and any(
-        word in lowered for word in ("deterior", "declin", "not improving", "worsen")
+    negated_improvement = bool(
+        re.search(r"\bnot\b.{0,30}\bimprov", lowered)
+        or re.search(r"\bdoesn['’]?t\b.{0,30}\bimprov", lowered)
+    )
+    direction_incorrect = not insufficient and (
+        negated_improvement
+        or any(word in lowered for word in ("deterior", "declin", "worsen"))
     )
     direction_correct = (
         not insufficient
@@ -735,7 +740,7 @@ def evaluate(
     ]
     evaluation = {
         "schema_version": 1,
-        "evaluation_version": "separated-qa-evidence-contract-v1.2.1",
+        "evaluation_version": "separated-qa-evidence-contract-v1.2.2",
         "scope": "development diagnostic only",
         "condition_outcomes": outcomes,
         "controlled_comparisons": comparisons,
