@@ -100,6 +100,31 @@ reasoning을 아직 분리할 수 없다. 동결 stop rule에 따라 더 큰 정
 - 추적 요약: `research/results/dependency-aware-pilot-v1_1-diagnostic-run-002-summary.json`
 - 원시 산출물: `research/work/preserved-dependency-aware-pilot-v1_1-diagnostic-run-002/`
 
+## v1.2 QA evidence/output contract 진단
+
+v1.1 D의 방향 정답과 수치 설명 누락을 분리하기 위해 결론 정확도, 실제로 명시한
+수치의 정확도, 필수 정량 설명의 완결성, 근거 충분성을 별도 판정한다. 수치를 전혀
+쓰지 않은 답변은 잘못된 수치가 아니라 `NOT_APPLICABLE_NO_NUMBERS`와 설명 누락으로
+기록한다. 모든 참조 숫자를 반복할 필요는 없고, 두 기간의 마진과 타당한 계산 근거를
+보인 동등 설명을 허용한다.
+
+로컬 llama3로 flat/old prompt, flat/quantitative prompt, human-verified table/quantitative
+prompt를 손상·A+B 상태에서 각각 실행했다. 명시적 계약은 수치 출력을 유도했지만 잘못된
+계산도 드러냈고, 표 표현까지 포함해 완결된 정답은 없었다. p55의 3,502/3,017 행은 PDF
+원문 자체에서 라벨이 비어 있음을 직접 확인했다. 표 직렬화는 oracle representation일
+뿐 자동 파서 구현이 아니다.
+
+- 명세: `research/specs/experiment_spec_v1_2.json`
+- 개입 타당성 감사: `research/reports/dependency-aware-pilot-v1_2-intervention-validity.md`
+- 실행 보고서: `research/reports/dependency-aware-pilot-v1_2-qa-contract-run-003.md`
+- 추적 요약: `research/results/dependency-aware-pilot-v1_2-qa-contract-run-003-summary.json`
+- 원시 산출물:
+  `research/work/preserved-dependency-aware-pilot-v1_2-qa-contract-run-003/`
+
+최종 판정은 v1.2.2다. 실행 후 발견한 negation/숫자 파싱 버그의 수정 이유와 이전 판정
+보존 정책은 `research/specs/experiment_spec_v1_2_evaluator_correction.md`에 기록했다.
+이 진단은 QA 계약 연결을 검증했을 뿐 정책 비교 준비 완료를 뜻하지 않는다.
+
 ## 지금 만들어진 자료
 
 2026-09-07 다음 입력을 실제 생성했다.
@@ -119,11 +144,12 @@ reasoning을 아직 분리할 수 없다. 동결 stop rule에 따라 더 큰 정
 
 ## 현재 다음 행동 한 가지
 
-**새 development 문서에서 후보 recall 경로를 설계·동결한 v1.1 명세를 만든다.**
+**독립 문서에서 오류 후보를 정상 후보와 구별할 비-gold 특징, 서로 다른 downstream
+의존 구조, 최종 지표를 바꾸는 수정이 함께 존재하는 사례군을 동결한다.**
 
-run 001에서 본 Boeing 결과를 튜닝 및 독립 최종 평가에 동시에 쓰지 않는다. 먼저 후보
-생성을 QA top-k와 분리하거나 별도의 구조/어휘 후보 검색을 정의하고, repair label을
-정책 입력에 노출하지 않은 채 후보 recall 진단을 추가해야 한다.
+Boeing 개발 결과를 계속 튜닝하고 독립 평가로 재명명하지 않는다. 같은 후보·정보·비용·
+예산 규칙에서 정책을 비교하며, Individual/Graph가 같은 집합을 고르거나 후보·검색이
+실패한 사례도 삭제하지 않는다.
 
 ## 1. 데이터 다시 준비하기
 
