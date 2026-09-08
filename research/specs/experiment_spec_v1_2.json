@@ -39,7 +39,7 @@
     "selection_policy_visible": false,
     "states": {
       "damaged": {"FY2022_revenue": 6608, "FY2022_total_costs": 6106, "implied_subtotal": 502, "implied_margin_percent": 7.5968523002, "unlabeled_reported_subtotal_margin_percent": 52.9963680387, "direction_by_both_routes": "improving versus FY2021"},
-      "A_only": {"FY2022_revenue": 66608, "FY2022_total_costs": 6106, "implied_subtotal": 60502, "implied_margin_percent": 90.8329329828, "unlabeled_reported_subtotal_margin_percent": 5.2576267115, "direction_by_both_routes": "improving versus FY2021"},
+      "A_only": {"FY2022_revenue": 66608, "FY2022_total_costs": 6106, "implied_subtotal": 60502, "implied_margin_percent": 90.832932981, "unlabeled_reported_subtotal_margin_percent": 5.2576267115, "direction_by_both_routes": "improving versus FY2021"},
       "B_only": {"FY2022_revenue": 6608, "FY2022_total_costs": 63106, "implied_subtotal": -56498, "implied_margin_percent": -854.9939467312, "unlabeled_reported_subtotal_margin_percent": 52.9963680387, "direction_by_routes": "conflicting"},
       "AB": {"FY2022_revenue": 66608, "FY2022_total_costs": 63106, "implied_subtotal": 3502, "implied_margin_percent": 5.2576267115, "unlabeled_reported_subtotal_margin_percent": 5.2576267115, "direction_by_both_routes": "improving versus FY2021"}
     },
