@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "spec_id": "dependency-aware-candidate-recall-evidence-access-diagnostic-v1.1",
+  "status": "FROZEN_DEVELOPMENT_DIAGNOSTIC",
+  "frozen_before_live_run": true,
+  "parent_spec_id": "dependency-aware-upstream-controlled-text-pilot-v1",
+  "change_reason": "run-001 restricted candidates to baseline/no-op QA top-k chunks, so neither controlled repair on p55 entered the selectable universe; v1.1 separates full-document candidate recall from downstream evidence access",
+  "scope": {
+    "document_role": "development_and_exploratory_only",
+    "case_id": "boeing-digit-deletion-pilot-v1",
+    "document_ids": ["BOEING_2022_10K"],
+    "question_ids": ["financebench_id_00678", "financebench_id_00585"],
+    "training": "none",
+    "tuning": "none during the frozen diagnostic",
+    "reuse_rule": "run-001 and every v1.1 Boeing output are development evidence and may not be reused as independent final evaluation",
+    "claim_boundary": "controlled text-only one-document diagnostic; no policy superiority, deployment performance, human repair, natural-error, multimodal, or population claim"
+  },
+  "controlled_variables": {
+    "unchanged": [
+      "llama3:latest local Ollama model",
+      "temperature 0 and context 8192",
+      "grounded-qa-json-v1 prompt",
+      "deterministic passthrough synthesis",
+      "3000-character chunks with 300-character overlap",
+      "BM25 top-k 4 for general retrieval",
+      "the same two frozen questions"
+    ],
+    "changed": [
+      "candidate enumeration expands from retrieved chunks to every numeric span in every corrupted source block",
+      "two oracle-evidence conditions replace BM25 output with the full p55 passthrough chunk"
+    ],
+    "actual_model_synthesis": "PROPOSED and not exercised"
+  },
+  "diagnostic_conditions": [
+    {
+      "condition": "A_damaged_general",
+      "source_state": "A and B corrupted",
+      "evidence_route": "normal BM25 top-k 4"
+    },
+    {
+      "condition": "B_repaired_general",
+      "source_state": "A and B restored by evaluation-only exact repairs",
+      "evidence_route": "normal BM25 top-k 4"
+    },
+    {
+      "condition": "C_damaged_oracle_evidence",
+      "source_state": "A and B corrupted",
+      "evidence_route": "force all passthrough chunks belonging to BOEING_2022_10K:p55"
+    },
+    {
+      "condition": "D_repaired_oracle_evidence",
+      "source_state": "A and B restored by evaluation-only exact repairs",
+      "evidence_route": "force the corresponding repaired BOEING_2022_10K:p55 chunk"
+    }
+  ],
+  "oracle_evidence": {
+    "block_id": "BOEING_2022_10K:p55",
+    "selection_basis": "the frozen FinanceBench reference-evidence block, used only for an evaluation diagnostic after policy inputs are irrelevant",
+    "context_rule": "provide the entire p55 passthrough block, including table title, dollars-in-millions unit, 2022/2021/2020 column header, revenue, cost, gross-profit, pretax-loss, and tax rows",
+    "answer_leakage_rule": "do not provide reference_answer, calculation, expected numbers, correctness label, repair label, or condition name to the model",
+    "corruption_correspondence": "condition C receives corrupted p55; condition D receives the exact-repaired p55 at the same provenance location",
+    "interpretation": "C and D are oracle-evidence diagnostics, never general retrieval or allocation performance"
+  },
+  "live_call_budget": {
+    "pipeline_executions": 4,
+    "questions_per_execution": 2,
+    "model_calls_per_execution": 2,
+    "estimated_model_calls": 8,
+    "maximum_model_calls": 8,
+    "maximum_output_tokens": 3200
+  },
+  "data_linkage": {
+    "source_block": "BOEING_2022_10K:p55",
+    "pdf_page": 55,
+    "printed_page": 53,
+    "unit": "USD millions except per-share data",
+    "columns": [2022, 2021, 2020],
+    "repair_A": {
+      "corrupted_span": [279, 284],
+      "before": "6,608",
+      "after": "66,608",
+      "meaning": "FY2022 Total revenues",
+      "question_effect": "gross-margin denominator for financebench_id_00678",
+      "unaffected_question": "financebench_id_00585"
+    },
+    "repair_B": {
+      "corrupted_span": [458, 463],
+      "before": "6,106",
+      "after": "63,106",
+      "meaning": "FY2022 Total costs and expenses, displayed in parentheses",
+      "question_effect": "gross-profit derivation/cross-check for financebench_id_00678; explicit 3,502 gross-profit row remains",
+      "unaffected_question": "financebench_id_00585"
+    },
+    "alternate_exact_values": {
+      "66,608": ["BOEING_2022_10K:p24 (two occurrences)", "BOEING_2022_10K:p49", "BOEING_2022_10K:p62", "BOEING_2022_10K:p114"],
+      "63,106": ["BOEING_2022_10K:p28"]
+    },
+    "do_not_remove_alternates": true
+  },
+  "candidate_generation": {
+    "input": "all corrupted source blocks before any evaluation repair is joined",
+    "numeric_pattern": "(?<![A-Za-z0-9_])\\(?[-+$]?\\d[\\d,]*(?:\\.\\d+)?%?\\)?(?![A-Za-z0-9_])",
+    "candidate_identity": "sha256(document_id, block_id, source_start, source_end, observed_text)",
+    "deduplication": "one candidate per source block and exact span",
+    "normal_candidates": "retained, selectable, and cost one",
+    "repair_label_join": "only after the candidate file and policy selections are serialized",
+    "candidate_recall": "evaluation-only count after freezing: labeled controlled-error spans found / labeled controlled-error spans",
+    "forbidden_inputs": ["gold evidence", "reference answer", "repair positions or corrected strings", "post-repair output or effect"]
+  },
+  "graph_and_relevance": {
+    "actual_provenance_edges": [
+      "source_to_transform from trace input_ids",
+      "transform_to_chunk from parent_synthesis_id",
+      "candidate_in_block from exact source span",
+      "candidate_to_chunk from deterministic span overlap",
+      "chunk_to_question_observed from actual top-k retrieval trace",
+      "chunk_to_answer_observed from actual QA citation"
+    ],
+    "estimated_relevance_edge": "candidate_to_question_estimated when any overlapping chunk has a positive full-corpus BM25 score for the question; save the score and mark edge_basis=lexical_estimate",
+    "selection_rule": "v1.1 policy diagnostics continue to use observed top-k descendant questions only; estimated edges are reported but not used for selection",
+    "zero_reach_rule": "a whole-document candidate outside baseline/no-op top-k has observed_structural_reach=0 even if estimated lexical relevance is positive; report rather than impute from gold",
+    "causal_boundary": "neither observed retrieval nor estimated lexical relevance is asserted to be causal downstream recovery"
+  },
+  "features_and_policies": {
+    "question_instability": "u_q = 0.5*I(normalized baseline answer differs from no-op) + 0.5*(1-Jaccard of cited block IDs)",
+    "candidate_instability_proxy": "s_i=(1+sum_{q in D_i}u_q)/(2+|D_i|), retained only for comparability with v1; it is not a numeric-span error probability",
+    "observed_structural_reach": "|D_i|/|Q| from actual baseline/no-op top-k retrieval edges",
+    "ideal_repair_given_detection": "1.0 means only: if inspection reveals a controlled error, the simulator applies the exact evaluation correction; it is not downstream recovery probability",
+    "verification_cost": 1,
+    "selection": {
+      "random": "seeded permutation of the full common candidate universe",
+      "uncertainty": "descending candidate_instability_proxy",
+      "individual_impact": "descending candidate_instability_proxy * ideal_repair_given_detection * observed_structural_reach",
+      "graph_aware": "greedy v1 marginal score over observed descendant questions with shared-descendant discount",
+      "budgets": [1, 2],
+      "tie_break": "ascending candidate_id; record every selection step where multiple candidates share the best score"
+    },
+    "distinguishability_metrics": [
+      "unique feature tuples",
+      "unique policy-score tuples",
+      "fraction of candidates in non-singleton score-tie groups",
+      "ID-tie-break decisions by policy and budget",
+      "Individual-impact versus Graph-aware selected-set symmetric difference and Jaccard",
+      "evaluation-only count of feature-identical groups containing both repair-labeled and normal candidates"
+    ]
+  },
+  "evaluation": {
+    "blind_template": "omit diagnostic condition, source state, evidence route, and repair status",
+    "financebench_reference_correct": "answer contains the frozen reference conclusion/numbers and cited evidence supports it",
+    "document_reported_correct": "separate manual audit against values directly reported elsewhere in the filing",
+    "evidence_accuracy": "judge supporting content, not p55 membership alone; record valid alternate evidence when present",
+    "known_conflict": "financebench_id_00585 reference signs (+0.62%, -14.76%) conflict with directly reported p24/p77 effective-rate signs (-0.6%, +14.8/+14.7%); do not use this question for an unqualified recovery claim until adjudicated",
+    "authored_sanity_examples": "evaluation-only written examples are marked AUTHORED_EVALUATOR_FIXTURE and must never be presented as model outputs",
+    "failure_localization": {
+      "candidate_generation": "repair label absent from the frozen full-document candidate universe",
+      "retrieval_access": "general retrieval provides no evidence judged sufficient while the corresponding oracle-evidence condition does",
+      "evidence_representation": "forced full-block context lacks table title/unit/years/material rows or is truncated before QA",
+      "answer_generation": "D receives intact sufficient corrected evidence but its model answer is incorrect",
+      "judgment": "an authored correct answer/evidence fixture is rejected or an authored incorrect fixture is accepted"
+    },
+    "deployment_reporting": "report all four general-condition question outcomes, including candidate misses and retrieval failures",
+    "conditional_reporting": "separately report oracle-evidence outcomes and any result conditional on a labeled error being in the candidate universe",
+    "stop_rule": "if D fails a non-conflicted question, analyze evidence representation/QA before any larger policy comparison"
+  },
+  "remaining_requirements": [
+    "diverse real parser outputs",
+    "VLM/image/layout multimodal evaluation",
+    "naturally occurring parser errors",
+    "actual LLM synthesis",
+    "multi-stage intervention and budget allocation",
+    "fair cost-matched output-only comparison",
+    "multiple independent evaluation documents",
+    "provenance-aware verification interface",
+    "paper tables, uncertainty, and limitations analysis"
+  ]
+}
