@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "spec_id": "multi-document-development-feasibility-v1.3",
+  "status": "FROZEN_DEVELOPMENT_FEASIBILITY_DIAGNOSTIC",
+  "frozen_before_live_run": true,
+  "parent_spec_id": "qa-evidence-output-contract-development-diagnostic-v1.2",
+  "change_reason": "Boeing prompt/model tuning is closed. v1.3 checks clean-document QA, a predeclared controlled repair case, and observable non-gold candidate features on three new development documents before any policy-performance comparison.",
+  "scope": {
+    "document_role": "development_and_exploratory_only",
+    "documents": ["AMCOR_2023_10K", "BESTBUY_2023_10K", "AMD_2022_10K"],
+    "question_ids": [
+      "financebench_id_00799",
+      "financebench_id_00684",
+      "financebench_id_00685",
+      "financebench_id_01275",
+      "financebench_id_00222",
+      "financebench_id_00563",
+      "financebench_id_00757"
+    ],
+    "question_count": 7,
+    "training": "none",
+    "model_or_prompt_tuning": "none after this spec is frozen",
+    "boeing_rule": "Boeing remains development diagnostic material; no further Boeing model or prompt tuning is permitted in v1.3",
+    "claim_boundary": "three-document controlled text-only development feasibility check; not a representative or independent policy evaluation and not evidence of natural error frequency, human verification success, multimodal performance, or general policy superiority"
+  },
+  "source_data": {
+    "dataset": "FinanceBench public 150-question release",
+    "source_commit": "cc39aeb4afdf33909ee1412188bf89035950c2eb",
+    "parser_primary": "pypdf 6.10.0 page-level extract_text",
+    "documents": [
+      {
+        "document_id": "AMCOR_2023_10K",
+        "pdf_sha256": "84d7a0291a12f4e68352750dccda3754c78eefdf06e0b5462046357a1ed53332",
+        "page_count": 156
+      },
+      {
+        "document_id": "BESTBUY_2023_10K",
+        "pdf_sha256": "7ca465d31a08be29e8c08d756644d33d818c7254a1215720f265227005cda696",
+        "page_count": 75
+      },
+      {
+        "document_id": "AMD_2022_10K",
+        "pdf_sha256": "a3bd74088fae0ad4aa03d04998a1f4c64fd0b3c693841601b0ac49b46cf5c1f4",
+        "page_count": 121
+      }
+    ],
+    "visual_audit": "the seven cited PDF pages were rendered at 2x and checked for row labels, year columns, signs, units, and subtotal relationships before freezing",
+    "all_seen_material_rule": "all three documents and all seven questions are development material and may not be reused as independent final evaluation"
+  },
+  "questions": [
+    {
+      "question_id": "financebench_id_00799",
+      "document_id": "AMCOR_2023_10K",
+      "task_type": "calculation_and_comparison",
+      "oracle_block_id": "AMCOR_2023_10K:p52",
+      "gold_status": "SOURCE_VERIFIED",
+      "evaluation_route": "quick ratio=(current assets-raw inventory-work in process and finished goods)/current liabilities for each year",
+      "accepted_conclusion": "improved slightly",
+      "material_values": {"FY2023": 0.6914655943, "FY2022": 0.6690182246, "relative_change_percent": 3.3552702875}
+    },
+    {
+      "question_id": "financebench_id_00684",
+      "document_id": "AMCOR_2023_10K",
+      "task_type": "calculation_and_comparison",
+      "oracle_block_id": "AMCOR_2023_10K:p50",
+      "gold_status": "SOURCE_VERIFIED_WITH_PERCENTAGE_POINT_WORDING",
+      "evaluation_route": "gross margin=gross profit/net sales for FY2023 and FY2022",
+      "accepted_conclusion": "not improving; declined",
+      "material_values": {"FY2023_percent": 18.5449843474, "FY2022_percent": 19.3894389439, "decline_percentage_points": 0.8444545964}
+    },
+    {
+      "question_id": "financebench_id_00685",
+      "document_id": "BESTBUY_2023_10K",
+      "task_type": "calculation_and_three_period_consistency",
+      "oracle_block_id": "BESTBUY_2023_10K:p40",
+      "gold_status": "SOURCE_VERIFIED_BUT_REFERENCE_EXPLANATION_INCOMPLETE_FOR_HISTORICAL_WORDING",
+      "evaluation_route": "gross margin=gross profit/revenue for FY2023, FY2022, and FY2021; evaluate adjacent annual changes against roughly two percentage points",
+      "accepted_conclusion": "historically consistent",
+      "material_values": {"FY2023_percent": 21.4091321439, "FY2022_percent": 22.4879735708, "FY2021_percent": 22.3710380432},
+      "primary_aggregate_rule": "retain answer dimensions but exclude unconditional overall correctness from the primary denominator until the benchmark explanation/task alignment is adjudicated"
+    },
+    {
+      "question_id": "financebench_id_01275",
+      "document_id": "BESTBUY_2023_10K",
+      "task_type": "direct_extraction_and_signed_comparison",
+      "oracle_block_id": "BESTBUY_2023_10K:p42",
+      "gold_status": "SOURCE_VERIFIED",
+      "accepted_conclusion": "operating activities",
+      "material_values_millions": {"operating": 1824, "investing": -962, "financing": -1806}
+    },
+    {
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "task_type": "calculation_and_threshold_judgment",
+      "oracle_block_id": "AMD_2022_10K:p56",
+      "gold_status": "SOURCE_VERIFIED_WITH_NORMATIVE_THRESHOLD_CAVEAT",
+      "evaluation_route": "quick ratio=(cash+short-term investments+accounts receivable+related-party receivables)/current liabilities",
+      "accepted_conclusion": "yes, under the benchmark's greater-than-one convention",
+      "material_values": {"ratio": 1.5674360182},
+      "caveat": "the filing supplies inputs, while the label reasonably healthy and threshold are benchmark interpretation rather than a fact directly stated by AMD"
+    },
+    {
+      "question_id": "financebench_id_00563",
+      "document_id": "AMD_2022_10K",
+      "task_type": "calculation_and_multi-option_comparison",
+      "oracle_block_id": "AMD_2022_10K:p48",
+      "gold_status": "SOURCE_VERIFIED",
+      "accepted_conclusion": "Data Center",
+      "material_values_percent": {"Data Center": 63.5896047645, "Client": -9.960795702, "Gaming": 21.366149456}
+    },
+    {
+      "question_id": "financebench_id_00757",
+      "document_id": "AMD_2022_10K",
+      "task_type": "direct_extraction",
+      "oracle_block_id": "AMD_2022_10K:p12",
+      "gold_status": "SOURCE_VERIFIED",
+      "accepted_conclusion": "yes",
+      "material_values": {"one_customer_share_percent": 16}
+    }
+  ],
+  "model_and_pipeline": {
+    "models": ["llama3:latest"],
+    "second_model_rule": "no second generative model was installed at freeze time; the installed embedding model is not treated as a QA comparison model",
+    "provider": "local Ollama loopback only",
+    "runtime_identity": "record Ollama version, immutable model digest, parameter size, and quantization in the run manifest",
+    "synthesis_mode": "deterministic passthrough",
+    "actual_llm_synthesis": "not implemented in this version",
+    "qa_contract": "quantitative_v2 / grounded-qa-quantitative-json-v2",
+    "prompt_variants": 1,
+    "adaptive_prompting": "prohibited",
+    "temperature": 0,
+    "context_tokens": 8192,
+    "qa_max_output_tokens": 700,
+    "retrieval_top_k": 6,
+    "document_isolation": "general retrieval is run separately per document so questions cannot retrieve another document's blocks",
+    "arithmetic_tool": "none; adding one would create a separately named pipeline version"
+  },
+  "clean_qa_conditions": {
+    "general_retrieval": "fresh BM25 retrieval over all clean page blocks from the question's own document",
+    "oracle_evidence": "fresh QA call forced to the one full, clean, visually audited source page listed for the question; this diagnoses answering given evidence and is not system retrieval performance",
+    "same_question_and_generation_settings": true,
+    "failure_localization": {
+      "general_wrong_or_incomplete_and_oracle_correct_complete": "retrieval/evidence access contribution",
+      "oracle_wrong_or_incomplete": "answer generation or output-contract failure remains even with sufficient evidence",
+      "invalid_or_missing_output": "pipeline/output failure; never count as correct"
+    }
+  },
+  "evaluation": {
+    "dimensions": [
+      "conclusion_correctness",
+      "stated_numeric_accuracy",
+      "required_quantitative_explanation_completeness",
+      "evidence_sufficiency"
+    ],
+    "missing_vs_wrong": "no numeric claim is MISSING_REQUIRED_NUMBERS, not a wrong number; a stated value with wrong magnitude/sign/period/unit/semantic role is INCORRECT",
+    "equivalent_explanations": "accept any source-supported calculation route sufficient for the requested conclusion; do not require every benchmark reference number",
+    "manual_review": "every live answer is reviewed against the rendered filing page in addition to deterministic checks",
+    "benchmark_conflict": "record separately from model error and exclude unresolved items from unconditional primary accuracy",
+    "primary_denominator": "six source-verified questions excluding financebench_id_00685's unresolved task/reference-completeness mismatch",
+    "failure_rule": "missing, unparseable, failed, uncited, unsupported, or unreviewed output is not correct"
+  },
+  "controlled_repair_case": {
+    "case_id": "amd-quick-ratio-two-digit-deletion-development-v1",
+    "question_id": "financebench_id_00222",
+    "evidence_route": "oracle full AMD_2022_10K:p56",
+    "eligibility_rule": "execute after the clean oracle call regardless of its outcome; report clean failure and all repair states rather than replacing the case",
+    "states": {
+      "clean": {"cash_2022": 4835, "accounts_receivable_2022": 4126, "quick_ratio": 1.5674360182},
+      "damaged": {"cash_2022": 835, "accounts_receivable_2022": 126, "quick_ratio_direct_route": 0.3113518606},
+      "A_only": {"cash_2022": 4835, "accounts_receivable_2022": 126, "quick_ratio_direct_route": 0.9393939394},
+      "B_only": {"cash_2022": 835, "accounts_receivable_2022": 4126, "quick_ratio_direct_route": 0.9393939394},
+      "AB": {"cash_2022": 4835, "accounts_receivable_2022": 4126, "quick_ratio_direct_route": 1.5674360182}
+    },
+    "repairs": {
+      "A": "restore the primary parser span 835 to 4,835 in the FY2022 cash row",
+      "B": "restore the primary parser span 126 to 4,126 in the FY2022 accounts-receivable row"
+    },
+    "frozen_metric_effect": "under the benchmark greater-than-one conclusion, neither individual repair crosses 1.0 but AB does on the direct numerator route",
+    "alternate_path": "the unchanged total-current-assets, inventories, and prepaid values give (15,019-3,771-1,265)/6,369=1.5674360182 in every state",
+    "duplicate_or_bypass_rule": "do not remove the alternate route; if the model bypasses injected spans, retain the no-effect result",
+    "error_origin": "intentional post-extraction controlled text corruption; not a naturally occurring parser error or frequency estimate",
+    "selection_leakage": "reference answer, repair spans, correct values, and observed downstream effects are evaluation-only and absent from policy input"
+  },
+  "non_gold_features": {
+    "same_for_individual_and_graph_aware": true,
+    "parser_disagreement": "per-page numeric-token multiset count difference between pypdf 6.10.0 primary text and PyMuPDF 1.28.2 extraction from the same PDF; actual second-parser observation, not a confidence score",
+    "layout_mapping": "PyMuPDF word bounding boxes and line/block identifiers matched by normalized numeric token and occurrence order; unmatched/ambiguous values remain explicitly unmatched rather than inferred",
+    "subtotal_component_consistency": "absolute residual of predeclared accounting identities read from the development tables; relations are human-configured from visible row labels and marked as such, not an automatic table parser",
+    "candidate_risk_proxy": "0.70*binary_parser_count_disagreement + 0.30*max_normalized_constraint_residual; a development anomaly score, not a calibrated probability",
+    "unavailable": ["learned parser confidence", "natural error likelihood", "human repair success probability", "VLM/layout-parser confidence"],
+    "repairability": "ideal exact repair if a verified controlled error is inspected; a simulation assumption, not downstream repair probability",
+    "reporting": ["unique feature vectors", "unique scores", "tie ratio", "ID tie-break selections", "Individual/Graph selected-set overlap", "error-vs-normal separation after frozen selection"]
+  },
+  "policy_probe": {
+    "status": "DEVELOPMENT_SELECTION_BEHAVIOR_ONLY_NOT_POLICY_PERFORMANCE",
+    "candidate_universe": "all numeric spans in the damaged primary-parser text of the three development documents, including normal candidates",
+    "verification_cost_per_candidate": 1,
+    "budget": 2,
+    "tie_break": "ascending candidate_id",
+    "individual_impact": "rank the shared anomaly_score times observed question reach times the ideal-exact-repair assumption independently",
+    "graph_aware": "greedy marginal score using the same per-candidate inputs and discounting already-covered downstream questions",
+    "no_oracle_input": true,
+    "post_selection_evaluation": "only after selections are serialized, join controlled repair labels to measure inclusion and distinguishability"
+  },
+  "live_call_budget": {
+    "clean_general_calls": 7,
+    "clean_oracle_calls": 7,
+    "repair_calls_excluding_reused_clean_oracle": 4,
+    "estimated_model_calls": 18,
+    "maximum_model_calls": 18,
+    "pipeline_executions": 14,
+    "maximum_output_tokens": 12600,
+    "external_paid_calls": 0,
+    "stop_rule": "do not add calls or prompt variants after observing outputs"
+  },
+  "independent_evaluation_gate": {
+    "status_before_v1_3_results": "NOT_READY",
+    "required_before_policy_scoring": [
+      "freeze a held-out document list and deterministic selection rule",
+      "freeze controlled error generation without using policy outcomes",
+      "freeze common candidate, information, unit-cost, budget, and metric rules",
+      "report overall and error-in-candidate conditional results",
+      "retain candidate misses, non-repairs, and identical policy selections"
+    ]
+  },
+  "preservation": {
+    "raw_policy": "append-only ignored research/work directory with inputs, prompts in traces, retrievals, outputs, judgments, configs, runtime identity, manifest, and checksums",
+    "summary_policy": "tracked report and summary never substitute for raw outputs",
+    "backup_status_at_freeze": "project persistent local path is the primary copy; an independent second physical backup has not yet been verified"
+  }
+}
