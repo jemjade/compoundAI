@@ -47,6 +47,14 @@ def test_gross_evaluator_separates_correct_conclusion_from_missing_numbers():
     assert result["unconditional_overall_correct"] is False
 
 
+def test_gross_evaluator_checks_negative_phrase_before_improve_substring():
+    result = _gross_evaluation(
+        _answer("The gross margin profile is not improving as of FY2022."),
+        "repaired",
+    )
+    assert result["conclusion_correctness"] == "INCORRECT"
+
+
 def test_gross_evaluator_accepts_equivalent_margin_explanation_without_all_gold_numbers():
     structured = {
         "conclusion": "Yes, the profile improved.",
@@ -85,6 +93,19 @@ def test_gross_evaluator_marks_wrong_numbers_and_damaged_evidence_separately():
     assert result["conclusion_correctness"] == "CORRECT"
     assert result["stated_numeric_accuracy"] == "INCORRECT_NUMERIC_CLAIM"
     assert result["evidence_sufficiency"] == "INSUFFICIENT"
+
+
+def test_gross_evaluator_does_not_treat_parenthesized_year_or_10k_as_claim():
+    result = _gross_evaluation(
+        _answer(
+            "Yes, the 10-K shows improvement: 5.3% (2022) versus 4.8% (2021). "
+            "gross margin = subtotal / revenue × 100",
+            structured_output={"calculations": ["subtotal / revenue × 100"]},
+        ),
+        "repaired",
+    )
+    assert result["stated_numeric_accuracy"] == "ALL_STATED_NUMBERS_CORRECT"
+    assert result["required_quantitative_explanation_completeness"] == "COMPLETE"
 
 
 def test_tax_evaluator_preserves_reference_sign_conflict():

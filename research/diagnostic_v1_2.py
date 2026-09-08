@@ -427,6 +427,7 @@ def _numeric_claims(answer: str) -> list[dict[str, Any]]:
     claims = []
     for match in NUMBER_PATTERN.finditer(answer.replace("−", "-")):
         raw = match.group(0)
+        document_label = answer[match.end() : match.end() + 2].lower() == "-k"
         stripped = raw.replace("$", "").replace(",", "").replace("%", "")
         negative_parentheses = stripped.startswith("(") and stripped.endswith(")")
         stripped = stripped.strip("()")
@@ -434,7 +435,8 @@ def _numeric_claims(answer: str) -> list[dict[str, Any]]:
             value = float(stripped)
         except ValueError:
             continue
-        if negative_parentheses:
+        is_year = abs(value) in {2020.0, 2021.0, 2022.0, 2023.0}
+        if negative_parentheses and not is_year:
             value = -value
         claims.append(
             {
@@ -442,7 +444,8 @@ def _numeric_claims(answer: str) -> list[dict[str, Any]]:
                 "value": value,
                 "is_percent": "%" in raw,
                 "is_currency": "$" in raw,
-                "is_year": value in {2020.0, 2021.0, 2022.0, 2023.0},
+                "is_year": is_year,
+                "is_document_label": document_label,
             }
         )
     return claims
@@ -458,11 +461,13 @@ def _gross_evaluation(answer: dict[str, Any], source_state: str) -> dict[str, An
     text = answer["answer"]
     lowered = text.lower()
     insufficient = "insufficient" in lowered or "not enough" in lowered
-    direction_correct = not insufficient and (
-        "improv" in lowered or lowered.startswith("yes")
-    )
     direction_incorrect = not insufficient and any(
         word in lowered for word in ("deterior", "declin", "not improving", "worsen")
+    )
+    direction_correct = (
+        not insufficient
+        and not direction_incorrect
+        and ("improv" in lowered or lowered.startswith("yes"))
     )
     conclusion = (
         "CORRECT"
@@ -470,7 +475,11 @@ def _gross_evaluation(answer: dict[str, Any], source_state: str) -> dict[str, An
         else ("INCORRECT" if direction_incorrect else "MISSING")
     )
     claims = _numeric_claims(text)
-    non_year = [claim for claim in claims if not claim["is_year"]]
+    non_year = [
+        claim
+        for claim in claims
+        if not claim["is_year"] and not claim["is_document_label"]
+    ]
     valid_values = (
         3502,
         3017,
@@ -488,6 +497,21 @@ def _gross_evaluation(answer: dict[str, Any], source_state: str) -> dict[str, An
         94.7,
         95.2,
         100,
+        55893,
+        51386,
+        47142,
+        10715,
+        10900,
+        11016,
+        53969,
+        49954,
+        54568,
+        9109,
+        9283,
+        9232,
+        28,
+        32,
+        43,
     )
     wrong = [claim for claim in non_year if not _near(claim["value"], valid_values)]
     if not non_year:
@@ -550,7 +574,11 @@ def _near_signed(values: list[float], target: float, tolerance: float = 0.011) -
 def _tax_evaluation(answer: dict[str, Any]) -> dict[str, Any]:
     text = answer["answer"]
     claims = _numeric_claims(text)
-    non_year = [claim for claim in claims if not claim["is_year"]]
+    non_year = [
+        claim
+        for claim in claims
+        if not claim["is_year"] and not claim["is_document_label"]
+    ]
     values = [claim["value"] for claim in non_year]
     financebench_numbers = _near_signed(values, 0.62) and _near_signed(values, -14.76)
     filing_numbers = _near_signed(values, -0.6) and (
@@ -665,9 +693,14 @@ def _posthoc_v11(parent: Path) -> dict[str, Any]:
     }
 
 
-def evaluate(run_dir: Path, parent_v11: Path) -> dict[str, Any]:
+def evaluate(
+    run_dir: Path, parent_v11: Path, out_dir: Path | None = None
+) -> dict[str, Any]:
+    output = out_dir or run_dir
+    if output != run_dir:
+        output.mkdir(parents=True, exist_ok=False)
     for name in ("evaluation_v2.json", "posthoc_v1_1_reanalysis.json", "summary.json"):
-        if (run_dir / name).exists():
+        if (output / name).exists():
             raise ValueError(
                 "Evaluation output exists; do not overwrite append-only artifacts"
             )
@@ -702,7 +735,7 @@ def evaluate(run_dir: Path, parent_v11: Path) -> dict[str, Any]:
     ]
     evaluation = {
         "schema_version": 1,
-        "evaluation_version": "separated-qa-evidence-contract-v1.2",
+        "evaluation_version": "separated-qa-evidence-contract-v1.2.1",
         "scope": "development diagnostic only",
         "condition_outcomes": outcomes,
         "controlled_comparisons": comparisons,
@@ -710,9 +743,9 @@ def evaluate(run_dir: Path, parent_v11: Path) -> dict[str, Any]:
         "tax_unconditional_claim_withheld": True,
         "all_reference_numbers_required_for_gross": False,
     }
-    write_json(run_dir / "evaluation_v2.json", evaluation)
+    write_json(output / "evaluation_v2.json", evaluation)
     posthoc = _posthoc_v11(parent_v11)
-    write_json(run_dir / "posthoc_v1_1_reanalysis.json", posthoc)
+    write_json(output / "posthoc_v1_1_reanalysis.json", posthoc)
     summary = {
         "schema_version": 1,
         "spec_id": manifest["spec_id"],
@@ -735,25 +768,25 @@ def evaluate(run_dir: Path, parent_v11: Path) -> dict[str, Any]:
         "intervention_validity": "not suitable for combination-effect or policy-superiority claims",
         "policy_comparison_gate": "NOT_READY",
         "most_important_next_work": "freeze an independent development/evaluation case set whose actual error candidates have non-gold distinguishing features, varied downstream dependencies, and repairs that can change a frozen final metric",
-        "evaluation_v2_sha256": sha256((run_dir / "evaluation_v2.json").read_bytes()),
+        "evaluation_v2_sha256": sha256((output / "evaluation_v2.json").read_bytes()),
         "posthoc_v1_1_reanalysis_sha256": sha256(
-            (run_dir / "posthoc_v1_1_reanalysis.json").read_bytes()
+            (output / "posthoc_v1_1_reanalysis.json").read_bytes()
         ),
     }
-    write_json(run_dir / "summary.json", summary)
+    write_json(output / "summary.json", summary)
     write_json(
-        run_dir / "evaluation_manifest.json",
+        output / "evaluation_manifest.json",
         {
             "schema_version": 1,
             "evaluation_version": evaluation["evaluation_version"],
             "created_at": datetime.now(UTC).isoformat(),
             "evaluation_v2_sha256": sha256(
-                (run_dir / "evaluation_v2.json").read_bytes()
+                (output / "evaluation_v2.json").read_bytes()
             ),
             "posthoc_v1_1_reanalysis_sha256": sha256(
-                (run_dir / "posthoc_v1_1_reanalysis.json").read_bytes()
+                (output / "posthoc_v1_1_reanalysis.json").read_bytes()
             ),
-            "summary_sha256": sha256((run_dir / "summary.json").read_bytes()),
+            "summary_sha256": sha256((output / "summary.json").read_bytes()),
         },
     )
     return summary
@@ -801,6 +834,7 @@ def main() -> None:
     judge = commands.add_parser("evaluate")
     judge.add_argument("--run", type=Path, required=True)
     judge.add_argument("--parent-v11", type=Path, required=True)
+    judge.add_argument("--out-dir", type=Path)
     preserve = commands.add_parser("preservation-manifest")
     preserve.add_argument("--run", type=Path, required=True)
     args = parser.parse_args()
@@ -823,7 +857,7 @@ def main() -> None:
             timeout=args.timeout,
         )
     elif args.action == "evaluate":
-        result = evaluate(args.run, args.parent_v11)
+        result = evaluate(args.run, args.parent_v11, args.out_dir)
     else:
         result = preservation_manifest(args.run)
     print(json.dumps(result, ensure_ascii=False, indent=2))
