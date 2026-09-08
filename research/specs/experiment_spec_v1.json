@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "spec_id": "dependency-aware-upstream-controlled-text-pilot-v1",
+  "status": "FROZEN_EXPLORATORY_PILOT",
+  "frozen_before_live_run": true,
+  "research_scope": {
+    "use_case": "review an already generated, fixed question-answer bundle",
+    "intervention_stage": "parsing output text spans only",
+    "verification_unit": "one automatically enumerated numeric source-text span",
+    "cost_unit": "one inspected candidate, whether or not it is erroneous or repaired",
+    "repair_model": "ideal exact correction from evaluation-only repair labels",
+    "human_claim": "none; this does not estimate human repair success or time",
+    "data_claim": "controlled text corruption only; not multimodal and not naturally occurring parser error"
+  },
+  "dataset": {
+    "source": "FinanceBench public release pinned by the prepared dataset manifest",
+    "case_id": "boeing-digit-deletion-pilot-v1",
+    "document_ids": ["BOEING_2022_10K"],
+    "question_ids": ["financebench_id_00678", "financebench_id_00585"],
+    "question_selection_note": "Two fixed Boeing questions are used to exercise distinct retrieval dependencies while keeping the local call budget small. Selection is exploratory and is not an independent evaluation sample.",
+    "independent_document_count": 1,
+    "split": "exploratory_plumbing_only",
+    "training": "none",
+    "tuning": "none; formulas, budgets, and tie-breaking are frozen before the live run",
+    "reuse_rule": "Outputs inspected during this pilot cannot later be relabeled as an independent confirmatory test. Any design change requires a new spec_id and change reason."
+  },
+  "initial_runs": {
+    "conditions": ["baseline", "no_op", "A", "B", "AB"],
+    "policy_visible_conditions": ["baseline", "no_op"],
+    "policy_forbidden_conditions": ["A", "B", "AB"],
+    "repeats": 1,
+    "fresh_execution": true,
+    "cache_rule": "Every condition invokes a new runner process and must have a unique pipeline_execution_id. no_op may not reuse baseline output.",
+    "targeted_condition_role": "A, B, and AB are oracle-location plumbing checks, not selectable-policy baselines. AB is an actual simultaneous correction and rerun.",
+    "first_live_call_budget": {
+      "pipeline_executions": 13,
+      "model_calls": 26,
+      "derivation": "5 targeted conditions plus 4 policies times 2 budgets; passthrough synthesis; 2 QA calls per execution"
+    }
+  },
+  "candidate_generation": {
+    "timing": "after baseline and no_op records exist, before repair labels are joined",
+    "allowed_inputs": [
+      "corrupted source blocks and their IDs/pages",
+      "fixed question text and IDs",
+      "baseline and no_op trace nodes, retrieval scores, answers, and cited source IDs"
+    ],
+    "forbidden_inputs": [
+      "reference answers",
+      "reference evidence",
+      "repair labels or corrected strings",
+      "A/B/AB outputs",
+      "post-repair correctness or recovery"
+    ],
+    "eligible_chunks": "union of chunks retrieved for a question in baseline or no_op",
+    "required_lineage_mode": "deterministic_passthrough",
+    "numeric_pattern": "(?<![A-Za-z0-9_])\\(?[-+$]?\\d[\\d,]*(?:\\.\\d+)?%?\\)?(?![A-Za-z0-9_])",
+    "candidate_identity": "sha256(document_id, block_id, source_start, source_end, observed_text)",
+    "deduplication": "same source block and span is one candidate even if overlapping chunks or both initial runs retrieve it",
+    "normal_candidates": "all enumerated candidates remain eligible; candidates without an evaluation repair label consume cost and cause no edit",
+    "repair_label_join": "performed only after a policy selection is frozen and serialized",
+    "validity_gate": "fail if the universe contains only repair-labeled candidates or if a repair label was present in serialized policy input"
+  },
+  "provenance_graph": {
+    "node_types": ["source_block", "transform", "chunk", "question", "answer", "candidate"],
+    "edge_types": {
+      "source_to_transform": "trace input_ids to transform output_id",
+      "transform_to_chunk": "chunk parent_synthesis_id",
+      "chunk_to_question": "retrieval output for a question",
+      "chunk_to_answer": "QA evidence_chunk_ids",
+      "candidate_in_block": "candidate source span belongs to one source block",
+      "candidate_to_chunk": "candidate span overlaps a deterministic passthrough chunk span"
+    },
+    "generation_evidence": "saved baseline/no_op runner traces and frozen corrupted blocks",
+    "descendant_questions": "questions reached by candidate_to_chunk followed by chunk_to_question in either policy-visible initial run",
+    "limitation": "Exact source-span overlap is valid only for synthesis_mode=passthrough. Model synthesis lineage is not eligible in v1. Graph reach is structural association, not causal recovery."
+  },
+  "features": {
+    "availability": {
+      "parser_disagreement": "unavailable because the pilot has one pypdf text output",
+      "parser_confidence": "unavailable because pypdf page blocks have no confidence",
+      "multimodal_layout": "unavailable",
+      "initial_run_instability": "available from independently executed baseline and no_op",
+      "structural_reach": "available from deterministic passthrough trace"
+    },
+    "answer_normalization": "Unicode NFKC, lowercase, collapse whitespace",
+    "jaccard_empty_rule": "J(empty, empty)=1; otherwise intersection size divided by union size",
+    "question_instability": "u_q = 0.5 * I(normalized baseline answer != normalized no_op answer) + 0.5 * (1 - J(baseline evidence_block_ids, no_op evidence_block_ids))",
+    "error_risk": "risk_i = (1 + sum_{q in D_i} u_q) / (2 + |D_i|), a frozen Laplace-smoothed instability proxy; it is not calibrated parser-error probability",
+    "structural_reach": "reach_i = |D_i| / |Q|, where D_i is the candidate's descendant-question set",
+    "shared_dependency": "overlap(i,j) = |D_i intersect D_j| / |D_i union D_j|, with zero for an empty union",
+    "expected_repairability": "repairability_i = 1.0 for every candidate, conditional on an error being present, because v1 simulates ideal exact correction; it is neither learned nor an observed downstream effect",
+    "cost": "cost_i = 1 for every selected candidate",
+    "actual_effect_rule": "post-repair recovery, regression, and interaction are evaluation-only fields and never policy features"
+  },
+  "policies": {
+    "budgets": [1, 2],
+    "budget_rule": "sum of selected candidate costs must not exceed the integer budget",
+    "common_tie_break": "ascending candidate_id after score comparison",
+    "random": {
+      "rule": "uniform seeded permutation of the common candidate universe; take the longest affordable prefix",
+      "seed": "sha256(spec_id, case_sha256, repeat_id, budget, policy_name)"
+    },
+    "uncertainty": {
+      "score": "risk_i / cost_i",
+      "rule": "descending fixed score"
+    },
+    "individual_impact": {
+      "score": "risk_i * repairability_i * reach_i / cost_i",
+      "rule": "descending fixed score independent of the selected set"
+    },
+    "graph_aware": {
+      "marginal_score": "risk_i * repairability_i / (cost_i * |Q|) * sum_{q in D_i}(1 / (1 + n_S(q)))",
+      "rule": "greedy recomputation after each choice; n_S(q) is the count of already selected candidates structurally reaching q",
+      "interpretation": "overlapping graph descendants are discounted as an estimate of redundant attention, not asserted to equal actual recovery overlap"
+    },
+    "oracle": "not a selectable policy in v1; targeted A/B/AB runs are reported separately as unattainable location-aware plumbing references",
+    "output_only": "PROPOSED and not comparable in v1 because no cost-matched downstream-output correction unit has been defined",
+    "multi_stage_allocation": "PROPOSED; v1 candidates are upstream parsing-text spans only"
+  },
+  "intervention_and_rerun": {
+    "selection_freeze": "write candidate universe, features, graph, scores, and selected IDs before accessing repair labels",
+    "inspection": "every selected candidate incurs cost one",
+    "normal_candidate": "record inspected_no_change and rerun the downstream pipeline without editing",
+    "repair_candidate": "apply the evaluation-only exact source-span replacement after selection",
+    "rerun_scope": "fresh passthrough chunking, BM25 retrieval, and QA for the fixed questions",
+    "forbidden_reuse": "no prior model response may substitute for any policy-budget execution",
+    "integrity": "record selected-set hash, input/output hash, unique execution IDs, model runtime identity, prompt/config/code provenance"
+  },
+  "evaluation": {
+    "separation": "gold and repair labels are loaded only by judgment-template/score steps, not selection",
+    "judgment_unit": "one generated answer and its cited evidence for one execution-question",
+    "blind_fields": "judgment template omits policy, budget, targeted condition, repeat, and repair-applied status",
+    "required_labels": ["answer_correct", "evidence_correct", "judge_id", "rationale"],
+    "overall_correct": "answer_correct AND evidence_correct",
+    "answer_rule": "For the two frozen FinanceBench questions, preserve conclusion direction and all material referenced numeric values; signs and units must agree. Equivalent wording is allowed.",
+    "numeric_rule": "exact values after normalization of commas/currency/percent formatting; no additional tolerance in v1",
+    "evidence_rule": "cited source block text must support the material answer. Gold page is a reference, not the only allowed source if another cited block genuinely supports the answer.",
+    "failure_rule": "runner failure, timeout, missing answer, invalid evidence ID, incomplete metadata, missing judgment, or integrity mismatch is not success and blocks the aggregate",
+    "per_condition_metrics": ["correct_count", "recovered_question_ids", "regressed_question_ids", "net_recovery"],
+    "no_op_metric": "no_op net change relative to baseline within the repeat",
+    "interaction": "I(A,B)=G(AB)-G(A)-G(B), using the actual AB simultaneous rerun",
+    "graph_vs_actual": "record structural descendant overlap separately from recovery-set overlap and interaction; do not infer equality",
+    "uncertainty": "none for this one-document one-repeat wiring pilot; no confidence interval or population claim"
+  },
+  "claim_boundary": {
+    "can_check": [
+      "candidate enumeration without repair-location disclosure",
+      "budget accounting including normal inspected candidates",
+      "policy set selection and graph-overlap discount mechanics",
+      "fresh selected-set repair/no-change reruns",
+      "traceable local-model outputs and paired descriptive recovery metrics"
+    ],
+    "cannot_check": [
+      "general superiority of graph-aware allocation",
+      "calibrated error risk or expected repairability",
+      "human time or repair success",
+      "multiple independent documents",
+      "multiple real parsers or naturally occurring errors",
+      "VLM, image, or layout effects",
+      "cross-stage allocation or fair output-only comparison",
+      "interface usability or cognitive burden",
+      "confirmatory uncertainty or statistical significance"
+    ]
+  },
+  "remaining_abstract_requirements": [
+    {"requirement": "diverse real parser outputs", "status": "PROPOSED"},
+    {"requirement": "multimodal VLM/image/layout evaluation", "status": "PROPOSED"},
+    {"requirement": "naturally occurring parser errors and grounded corruption taxonomy", "status": "PROPOSED"},
+    {"requirement": "allocation across parsing, synthesis, and downstream stages", "status": "PROPOSED"},
+    {"requirement": "cost-matched output-only baseline", "status": "PROPOSED"},
+    {"requirement": "evaluation across multiple independent documents", "status": "PROPOSED"},
+    {"requirement": "provenance-aware verification interface", "status": "PROPOSED"},
+    {"requirement": "paper result tables, uncertainty, and limitations analysis", "status": "PROPOSED"}
+  ]
+}
