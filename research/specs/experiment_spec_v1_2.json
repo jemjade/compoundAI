@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "spec_id": "qa-evidence-output-contract-development-diagnostic-v1.2",
+  "status": "FROZEN_DEVELOPMENT_DIAGNOSTIC",
+  "frozen_before_live_run": true,
+  "parent_spec_id": "dependency-aware-candidate-recall-evidence-access-diagnostic-v1.1",
+  "change_reason": "v1.1 condition D reached the correct gross-margin direction but the strict evaluator rejected it for omitting every reference number; v1.2 separates conclusion correctness, numeric-claim accuracy, required quantitative-explanation completeness, and evidence sufficiency, then isolates output instructions from oracle table representation",
+  "scope": {
+    "document_role": "development_and_exploratory_only",
+    "case_id": "boeing-digit-deletion-pilot-v1",
+    "document_ids": ["BOEING_2022_10K"],
+    "question_ids": ["financebench_id_00678", "financebench_id_00585"],
+    "training": "none",
+    "tuning": "none after this spec is frozen",
+    "reuse_rule": "run-001, v1.1 run-002, v1.2 outputs, and this Boeing document remain development evidence and may not be reused as independent final evaluation",
+    "claim_boundary": "controlled text-only one-document QA-contract diagnostic; no selection-policy superiority, deployment performance, natural-error, automatic table-parser, multimodal, human-repair, or population claim"
+  },
+  "preservation": {
+    "old_rule": "v1.1 frozen spec, raw records, deterministic strict judgments, summary, report, manifests, and checksums remain unchanged",
+    "posthoc_rule": "applying v1.2 dimensions to v1.1 A-D outputs is POSTHOC_EXPLORATORY_REANALYSIS and must use identical rules for all four conditions",
+    "append_only": "new live outputs use a new ignored research/work directory and are never written over an existing run"
+  },
+  "source_audit": {
+    "pdf_sha256": "09285ff7ee737d3302977104aa05cc53c9dfb0161f3461a89b583dc38b9f2ab6",
+    "rendered_pages_checked": [24, 28, 55, 77],
+    "p55": {
+      "pdf_page": 55,
+      "printed_page": 53,
+      "title": "The Boeing Company and Subsidiaries — Consolidated Statements of Operations",
+      "unit": "Dollars in millions, except per share data",
+      "year_columns": [2022, 2021, 2020],
+      "subtotal_label_finding": "the source PDF itself leaves the 3,502 / 3,017 / (5,685) row label blank",
+      "prohibition": "do not claim that pypdf lost a source label and do not label the row gross profit in model-visible oracle representation"
+    },
+    "human_interpretation": "interpreting the unlabeled subtotal as revenue minus total costs is evaluation-side semantic reasoning, not extracted source text or an automatic parser output"
+  },
+  "intervention_validity": {
+    "evaluation_only": true,
+    "selection_policy_visible": false,
+    "states": {
+      "damaged": {"FY2022_revenue": 6608, "FY2022_total_costs": 6106, "implied_subtotal": 502, "implied_margin_percent": 7.5968523002, "unlabeled_reported_subtotal_margin_percent": 52.9963680387, "direction_by_both_routes": "improving versus FY2021"},
+      "A_only": {"FY2022_revenue": 66608, "FY2022_total_costs": 6106, "implied_subtotal": 60502, "implied_margin_percent": 90.8329329828, "unlabeled_reported_subtotal_margin_percent": 5.2576267115, "direction_by_both_routes": "improving versus FY2021"},
+      "B_only": {"FY2022_revenue": 6608, "FY2022_total_costs": 63106, "implied_subtotal": -56498, "implied_margin_percent": -854.9939467312, "unlabeled_reported_subtotal_margin_percent": 52.9963680387, "direction_by_routes": "conflicting"},
+      "AB": {"FY2022_revenue": 66608, "FY2022_total_costs": 63106, "implied_subtotal": 3502, "implied_margin_percent": 5.2576267115, "unlabeled_reported_subtotal_margin_percent": 5.2576267115, "direction_by_both_routes": "improving versus FY2021"}
+    },
+    "FY2021_reference": {"revenue": 62286, "total_costs": 59269, "subtotal": 3017, "margin_percent": 4.8437851203},
+    "gross_conclusion": "the direction remains improving even when A and B are both damaged, although the exact FY2022 margin is wrong; A and B together are not necessary for the binary conclusion",
+    "repair_roles": {
+      "A": "needed for the correct p55 FY2022 revenue denominator and exact margin, but not globally necessary because exact revenue occurs elsewhere and p28 directly reports cost share",
+      "B": "needed only for a consistent revenue-minus-cost reconstruction on p55; it is optional for a route using the unlabeled subtotal and revenue, and p28 provides an alternate exact cost/share route"
+    },
+    "tax_effect": "neither A nor B changes loss before tax or income tax expense/benefit; the tax question is a non-effect candidate only after its answer convention is resolved",
+    "combination_effect_fitness": "UNSUITABLE_FOR_POLICY_EFFECT_CLAIM; retain only for execution, contract, consistency, and negative-control diagnostics"
+  },
+  "alternate_paths": {
+    "do_not_remove": true,
+    "gross": [
+      "p55 unlabeled subtotal 3,502/3,017 divided by revenue 66,608/62,286",
+      "p55 revenue minus total costs yields the same subtotals only in the AB repaired state",
+      "p28 cost of sales as a percent of revenue 94.7%/95.2%, implying 5.3%/4.8%",
+      "exact 66,608 remains on p24 (twice), p49, p62, and p114; exact 63,106 remains on p28"
+    ],
+    "tax": [
+      "p24 reports effective income tax rate (0.6)% for 2022 and 14.8% for 2021",
+      "p77 reports (0.6)% for 2022 and 14.7% for 2021"
+    ]
+  },
+  "qa_contracts": {
+    "concise_v1": {
+      "prompt_version": "grounded-qa-json-v1",
+      "response_fields": ["answer", "evidence_chunk_ids"],
+      "compatibility": "unchanged historical contract"
+    },
+    "quantitative_v2": {
+      "prompt_version": "grounded-qa-quantitative-json-v2",
+      "response_fields": ["conclusion", "quantitative_explanation", "calculations", "evidence_chunk_ids"],
+      "instructions": [
+        "state a direct conclusion",
+        "for a quantitative/comparative question state the material values, their periods, signs, and units",
+        "show the formula or comparison and substituted values needed to support the conclusion",
+        "cite only supplied chunks and explicitly report insufficient evidence rather than inventing a value"
+      ],
+      "forbidden_prompt_content": ["expected numbers", "reference answer", "expected conclusion", "condition name", "repair state or label"]
+    }
+  },
+  "evidence_representations": {
+    "flat_extracted_text": "the existing pypdf-derived p55 block after the requested source-state edits only",
+    "oracle_human_verified_table_v1": {
+      "status": "ORACLE_REPRESENTATION_DIAGNOSTIC_ONLY",
+      "construction": "human-authored row/column serialization after direct visual inspection of the PDF",
+      "not_claimed": ["automatic parser output", "VLM output", "layout extraction implementation"],
+      "source_fidelity": "preserve title, unit, year headers, source row labels, parentheses, and the blank subtotal label; do not add gross-profit semantics",
+      "corruption_control": "damaged representation retains 6,608 and (6,106); repaired representation changes only those values to 66,608 and (63,106)"
+    }
+  },
+  "diagnostic_conditions": [
+    {"condition": "flat_old_prompt_damaged", "source_state": "damaged", "evidence_representation": "flat_extracted_text", "qa_contract": "concise_v1"},
+    {"condition": "flat_old_prompt_repaired", "source_state": "AB", "evidence_representation": "flat_extracted_text", "qa_contract": "concise_v1"},
+    {"condition": "flat_quantitative_prompt_damaged", "source_state": "damaged", "evidence_representation": "flat_extracted_text", "qa_contract": "quantitative_v2"},
+    {"condition": "flat_quantitative_prompt_repaired", "source_state": "AB", "evidence_representation": "flat_extracted_text", "qa_contract": "quantitative_v2"},
+    {"condition": "table_quantitative_prompt_damaged", "source_state": "damaged", "evidence_representation": "oracle_human_verified_table_v1", "qa_contract": "quantitative_v2"},
+    {"condition": "table_quantitative_prompt_repaired", "source_state": "AB", "evidence_representation": "oracle_human_verified_table_v1", "qa_contract": "quantitative_v2"}
+  ],
+  "controlled_variables": {
+    "same": ["llama3:latest model digest checked at runtime", "local Ollama provider", "temperature 0", "context 8192", "passthrough synthesis", "entire p55 forced oracle evidence", "same two question texts", "one fresh execution per condition"],
+    "comparison_1": "flat old prompt versus flat quantitative prompt isolates output requirement, subject to independent-run variation",
+    "comparison_2": "flat quantitative prompt versus table quantitative prompt isolates evidence representation, subject to independent-run variation",
+    "actual_model_synthesis": "still incomplete"
+  },
+  "live_call_budget": {
+    "pipeline_executions": 6,
+    "questions_per_execution": 2,
+    "model_calls_per_execution": 2,
+    "estimated_model_calls": 12,
+    "maximum_model_calls": 12,
+    "qa_max_output_tokens_per_call": 700,
+    "maximum_output_tokens": 8400,
+    "prompt_variants": 2,
+    "representation_variants": 2,
+    "no_adaptive_prompting": "do not add or edit variants after seeing a model output in this run"
+  },
+  "evaluation_v2": {
+    "status": "development deterministic contract evaluator",
+    "dimensions": {
+      "conclusion_correctness": "whether the direct qualitative comparison agrees with the applicable reference; independent of numeric explanation",
+      "stated_numeric_accuracy": "whether every numeric claim actually stated has the correct value, sign, period, unit, and role for the cited/source-state evidence; no stated number is NOT_APPLICABLE rather than an incorrect numeric value",
+      "required_quantitative_explanation_completeness": "for gross, conclusion plus comparable FY2022/FY2021 margins with periods and a valid calculation/basis, or source inputs and a shown formula sufficient to derive both; missing material numbers/formula is MISSING_REQUIRED_EXPLANATION",
+      "evidence_sufficiency": "whether cited model-visible evidence supports the conclusion and stated calculation in that source state; block membership alone is insufficient"
+    },
+    "gross_equivalent_explanations": [
+      "5.3% in FY2022 versus 4.8% in FY2021 with gross-margin basis/formula",
+      "FY2022 and FY2021 numerator/denominator values with gross-margin formula and correct derived comparison",
+      "100% minus directly reported cost-of-sales percentages for both periods when that evidence is actually visible"
+    ],
+    "all_reference_numbers_required": false,
+    "reason": "gross-profit dollar amounts are not necessary if an equally valid two-period gross-margin calculation is complete",
+    "missing_vs_wrong": {
+      "no_numbers": "MISSING_REQUIRED_EXPLANATION with stated_numeric_accuracy=NOT_APPLICABLE_NO_NUMBERS",
+      "numbers_wrong": "INCORRECT_NUMERIC_CLAIM",
+      "numbers_correct_but_incomplete": "INCOMPLETE_QUANTITATIVE_EXPLANATION"
+    },
+    "failure_rule": "missing, invalid, unparseable, or uncited output is not counted as correct",
+    "tax": "score separately against FinanceBench-derived and filing-reported conventions; do not emit an unconditional correct/recovered label until adjudicated"
+  },
+  "tax_conflict": {
+    "financebench_reference": {"FY2022_percent": 0.62, "FY2021_percent": -14.76, "derivation": "uses arithmetic signs from tax (expense)/benefit divided by loss before tax without applying the filing's rate-sign presentation"},
+    "filing_reported": {"p24": {"FY2022_percent": -0.6, "FY2021_percent": 14.8}, "p77": {"FY2022_percent": -0.6, "FY2021_percent": 14.7}},
+    "sign_definition": "parentheses denote negative amounts/rates; the filing's effective-rate row is authoritative for document-reported values, while FinanceBench is retained as the benchmark label",
+    "claim_rule": "no unconditional tax recovery claim before answer-standard adjudication"
+  },
+  "policy_comparison_restart_gate": {
+    "all_required": true,
+    "criteria": [
+      "the frozen verification candidate universe contains actual errors",
+      "policy-visible observed features provide a non-gold basis to distinguish at least some error candidates from normal candidates",
+      "the evaluation includes different downstream dependency structures capable of producing different selection behavior",
+      "at least one repair can change a frozen final evaluation metric",
+      "all policies use the same candidates, policy-visible information, verification cost, and budget"
+    ],
+    "anti_cherry_pick": "retain independent cases where Individual impact and Graph-aware select the same set and retain candidate misses/retrieval failures",
+    "current_status": "NOT_READY; v1.2 QA-contract success alone cannot open the gate"
+  },
+  "remaining_requirements": [
+    "diverse real parser outputs",
+    "VLM/image/layout multimodal evaluation",
+    "naturally occurring parser errors",
+    "actual LLM synthesis",
+    "multi-stage intervention and budget allocation",
+    "fair cost-matched output-only comparison",
+    "multiple independent evaluation documents",
+    "provenance-aware verification interface",
+    "paper tables, uncertainty, and limitations analysis"
+  ]
+}
