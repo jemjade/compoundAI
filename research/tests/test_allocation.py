@@ -23,6 +23,7 @@ from research.allocation_pilot import (
     preflight,
 )
 from research.diagnostic_v1_1 import (
+    _state_valid_blocks,
     analyze_distinguishability,
     build_full_document_policy_input,
     diagnostic_judgments,
@@ -536,3 +537,16 @@ def test_v1_1_dual_reference_evaluator_and_authored_sanity_fixtures():
     assert tax["financebench_answer_correct"] is False
     assert tax["document_answer_correct"] is True
     assert tax["document_evidence_correct"] is True
+
+
+def test_v1_1_evidence_sufficiency_depends_on_source_state():
+    question_id = "financebench_id_00678"
+    assert "BOEING_2022_10K:p55" not in _state_valid_blocks(
+        question_id, "damaged", document_reported=False
+    )
+    assert "BOEING_2022_10K:p28" in _state_valid_blocks(
+        question_id, "damaged", document_reported=False
+    )
+    assert "BOEING_2022_10K:p55" in _state_valid_blocks(
+        question_id, "repaired", document_reported=False
+    )

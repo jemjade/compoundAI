@@ -790,6 +790,19 @@ def _retrieved_blocks(record: dict[str, Any], question_id: str) -> set[str]:
     return blocks
 
 
+def _state_valid_blocks(
+    question_id: str, source_state: str, *, document_reported: bool
+) -> set[str]:
+    valid = set(
+        DOCUMENT_VALID_BLOCKS[question_id]
+        if document_reported
+        else FINANCEBENCH_VALID_BLOCKS[question_id]
+    )
+    if question_id == GROSS_QUESTION_ID and source_state == "damaged":
+        valid.discard(ORACLE_BLOCK_ID)
+    return valid
+
+
 def _oracle_integrity(record: dict[str, Any], repaired: bool) -> dict[str, Any]:
     required = [
         "Consolidated Statements of Operations",
@@ -829,14 +842,17 @@ def _oracle_integrity(record: dict[str, Any], repaired: bool) -> dict[str, Any]:
     }
 
 
-def evaluate(run_dir: Path, gold_path: Path) -> dict[str, Any]:
+def evaluate(run_dir: Path, gold_path: Path, out_dir: Path | None = None) -> dict[str, Any]:
+    output = out_dir or run_dir
+    if output != run_dir:
+        output.mkdir(parents=True, exist_ok=False)
     for name in (
         "judgments.template.jsonl",
         "judgments.jsonl",
         "summary.json",
         "evaluation_manifest.json",
     ):
-        if (run_dir / name).exists():
+        if (output / name).exists():
             raise ValueError("Evaluation output exists; do not overwrite append-only artifacts")
     manifest = _load_json(run_dir / "manifest.json")
     if manifest["status"] != "complete":
@@ -847,36 +863,43 @@ def evaluate(run_dir: Path, gold_path: Path) -> dict[str, Any]:
     sanity = evaluator_sanity()
     if sanity["status"] != "pass":
         raise ValueError("Authored evaluator sanity fixtures failed")
-    write_jsonl(run_dir / "judgments.template.jsonl", template)
-    write_jsonl(run_dir / "judgments.jsonl", judgments)
+    write_jsonl(output / "judgments.template.jsonl", template)
+    write_jsonl(output / "judgments.jsonl", judgments)
     by_judgment = {row["judgment_id"]: row for row in judgments}
     outcomes = []
     for record in records:
         per_question = []
         for answer in record["response"]["answers"]:
             judged = by_judgment[judgment_id(record, answer["question_id"])]
+            question_id = answer["question_id"]
+            cited = set(answer["evidence_block_ids"])
+            retrieved = _retrieved_blocks(record, question_id)
+            financebench_valid = _state_valid_blocks(
+                question_id, record["source_state"], document_reported=False
+            )
+            document_valid = _state_valid_blocks(
+                question_id, record["source_state"], document_reported=True
+            )
+            financebench_evidence = bool(cited & financebench_valid)
+            document_evidence = bool(cited & document_valid)
             per_question.append(
                 {
-                    "question_id": answer["question_id"],
+                    "question_id": question_id,
                     "answer": answer["answer"],
                     "evidence_block_ids": answer["evidence_block_ids"],
                     "financebench_answer_correct": judged["financebench_answer_correct"],
-                    "financebench_evidence_correct": judged["financebench_evidence_correct"],
+                    "financebench_evidence_correct": financebench_evidence,
                     "financebench_overall_correct": judged["financebench_answer_correct"]
-                    and judged["financebench_evidence_correct"],
+                    and financebench_evidence,
                     "document_answer_correct": judged["document_answer_correct"],
-                    "document_evidence_correct": judged["document_evidence_correct"],
+                    "document_evidence_correct": document_evidence,
                     "document_overall_correct": judged["document_answer_correct"]
-                    and judged["document_evidence_correct"],
-                    "retrieved_block_ids": sorted(_retrieved_blocks(record, answer["question_id"])),
+                    and document_evidence,
+                    "retrieved_block_ids": sorted(retrieved),
                     "retrieval_has_financebench_sufficient_block": bool(
-                        _retrieved_blocks(record, answer["question_id"])
-                        & FINANCEBENCH_VALID_BLOCKS[answer["question_id"]]
+                        retrieved & financebench_valid
                     ),
-                    "retrieval_has_document_sufficient_block": bool(
-                        _retrieved_blocks(record, answer["question_id"])
-                        & DOCUMENT_VALID_BLOCKS[answer["question_id"]]
-                    ),
+                    "retrieval_has_document_sufficient_block": bool(retrieved & document_valid),
                 }
             )
         outcomes.append(
@@ -917,18 +940,20 @@ def evaluate(run_dir: Path, gold_path: Path) -> dict[str, Any]:
             else None
         ),
         "tax_evaluation_conflict": True,
+        "adjudication_version": "state-aware-evidence-sufficiency-v2",
     }
-    write_json(run_dir / "summary.json", summary)
+    write_json(output / "summary.json", summary)
     evaluation_manifest = {
         "schema_version": 1,
+        "adjudication_version": "state-aware-evidence-sufficiency-v2",
         "created_at": datetime.now(UTC).isoformat(),
         "gold_sha256": sha256(gold_path.read_bytes()),
-        "judgment_template_sha256": sha256((run_dir / "judgments.template.jsonl").read_bytes()),
-        "judgments_sha256": sha256((run_dir / "judgments.jsonl").read_bytes()),
-        "summary_sha256": sha256((run_dir / "summary.json").read_bytes()),
+        "judgment_template_sha256": sha256((output / "judgments.template.jsonl").read_bytes()),
+        "judgments_sha256": sha256((output / "judgments.jsonl").read_bytes()),
+        "summary_sha256": sha256((output / "summary.json").read_bytes()),
         "evaluator_sanity_status": sanity["status"],
     }
-    write_json(run_dir / "evaluation_manifest.json", evaluation_manifest)
+    write_json(output / "evaluation_manifest.json", evaluation_manifest)
     return summary
 
 
@@ -948,6 +973,7 @@ def main() -> None:
     judge = commands.add_parser("evaluate")
     judge.add_argument("--run", type=Path, required=True)
     judge.add_argument("--gold", type=Path, required=True)
+    judge.add_argument("--out-dir", type=Path)
     args = parser.parse_args()
     if args.action == "preflight":
         result = preflight(args.case, args.spec, args.config, args.max_total_calls)
@@ -966,7 +992,7 @@ def main() -> None:
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
-        result = evaluate(args.run, args.gold)
+        result = evaluate(args.run, args.gold, args.out_dir)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
