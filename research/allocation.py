@@ -412,7 +412,7 @@ def select_candidates(
                 options.append((round(marginal, 8), candidate_id))
             if not options:
                 break
-            score, candidate_id = sorted(options, key=lambda row: (-row[0], row[1]))[0]
+            score, candidate_id = min(options, key=lambda row: (-row[0], row[1]))
             selected.append(candidate_id)
             remaining.remove(candidate_id)
             spent += by_id[candidate_id]["features"]["verification_cost"]

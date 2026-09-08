@@ -67,6 +67,20 @@ must be reviewed manually.
 변환한다. 이 폴더 자체가 초록의 전체 시스템을 구현한 것은 아니다. 테스트 통과,
 데이터 준비 수치, 테스트용 가짜 응답을 논문의 복구 성능으로 사용하지 않는다.
 
+## 첫 실제 allocation 실행 결과
+
+동결된 v1 명세로 로컬 `llama3:latest`를 26회 호출한 run 001을 완료했다. 구현 연결은
+완료됐지만 BM25 top-k 후보군에 두 주입 오류가 있는 p55가 들어오지 않아 모든 정책이
+정상 후보만 검사했고, 복구·악화·순복구는 모두 0이었다. 이는 정책 우수성 결과가 아니라
+후보 recall 실패를 드러낸 exploratory wiring 결과다.
+
+- 상세 보고서: `research/reports/dependency-aware-pilot-v1-run-001.md`
+- 추적 가능한 요약: `research/results/dependency-aware-pilot-v1-run-001-summary.json`
+- 원시 산출물: `research/work/dependency-aware-pilot-v1-run-001/` (Git 제외)
+- 후속 변경안: `research/specs/experiment_spec_v1_1_change_proposal.md`
+
+동결된 v1은 소급 변경하지 않으며 run 001을 독립 최종 평가로 재사용하지 않는다.
+
 ## 지금 만들어진 자료
 
 2026-09-07 다음 입력을 실제 생성했다.
@@ -86,9 +100,11 @@ must be reviewed manually.
 
 ## 현재 다음 행동 한 가지
 
-**API 연결 정보와 호출 예산을 확인한 뒤 준비된 보잉 사례를 반복 1회 실행한다.**
+**새 development 문서에서 후보 recall 경로를 설계·동결한 v1.1 명세를 만든다.**
 
-첫 성공 조건은 성능 향상이 아니라, 서로 다른 다섯 조건의 결과가 실제 호출로 기록되는 것이다. 외부 실행기가 제공되기 전까지 모델 결과표는 생성하지 않는다.
+run 001에서 본 Boeing 결과를 튜닝 및 독립 최종 평가에 동시에 쓰지 않는다. 먼저 후보
+생성을 QA top-k와 분리하거나 별도의 구조/어휘 후보 검색을 정의하고, repair label을
+정책 입력에 노출하지 않은 채 후보 recall 진단을 추가해야 한다.
 
 ## 1. 데이터 다시 준비하기
 

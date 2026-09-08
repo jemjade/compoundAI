@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -28,7 +29,7 @@ class LiveFakeGenerator:
     execution_mode = "live_local_model"
     sdk = "test-live-transport"
     sdk_version = "1"
-    provider_runtime = {"model_digest": "test-digest"}
+    provider_runtime: ClassVar[dict[str, str]] = {"model_digest": "test-digest"}
 
     def generate(self, *, stage, instructions, input_text, max_output_tokens):
         del instructions, max_output_tokens
@@ -275,6 +276,55 @@ def test_selected_normal_candidate_costs_and_reruns_without_edit(monkeypatch, ca
     assert record["actions"][0]["action"] == "inspected_no_change"
     assert captured["payload"]["blocks"] == case["blocks"]
     assert record["spent_cost"] == 1
+
+
+def test_selected_repair_candidate_applies_exact_edit_before_fresh_rerun(monkeypatch, case):
+    policy_input = build_policy_input(
+        case=case,
+        baseline_record=_record(case, "baseline"),
+        no_op_record=_record(case, "no_op"),
+        question_ids=["q1", "q2"],
+        spec_id="test-v1",
+        repeat_id=0,
+    )
+    repair = case["repairs"][0]
+    selected = next(
+        row
+        for row in policy_input["candidates"]
+        if (row["block_id"], row["start"], row["end"], row["observed_text"])
+        == (repair["block_id"], repair["start"], repair["end"], repair["before"])
+    )
+    captured = {}
+
+    def fake_run(_command, payload, _timeout):
+        captured["payload"] = copy.deepcopy(payload)
+        return _record(case, "baseline")["response"]
+
+    monkeypatch.setattr("research.allocation_pilot._run_payload", fake_run)
+    record = _condition_record(
+        selection={
+            "repeat_id": 0,
+            "policy": "uncertainty",
+            "budget": 1,
+            "spent_cost": 1,
+            "selected_candidate_ids": [selected["candidate_id"]],
+            "selected_set_sha256": "set-hash",
+        },
+        policy_input=policy_input,
+        case=case,
+        command=["runner"],
+        timeout=1,
+    )
+
+    assert record["actions"] == [
+        {
+            "candidate_id": selected["candidate_id"],
+            "action": "ideal_exact_repair",
+            "repair_candidate_id": "A",
+        }
+    ]
+    assert captured["payload"]["blocks"][0]["text"].startswith("2022 revenue 66,608")
+    assert captured["payload"]["blocks"][0]["text"] != case["blocks"][0]["text"]
 
 
 def test_live_result_gate_rejects_mock_or_incomplete_metadata(case):

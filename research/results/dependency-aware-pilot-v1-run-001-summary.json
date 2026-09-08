@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "status": "IMPLEMENTED_EXPLORATORY_RESULT",
+  "spec_id": "dependency-aware-upstream-controlled-text-pilot-v1",
+  "run_id": "9387c6c1-0317-4758-9797-e5db41c08721",
+  "run_directory": "research/work/dependency-aware-pilot-v1-run-001",
+  "raw_artifacts_tracked_by_git": false,
+  "execution_commit": "388edb6597921c26ffb9dba19e775dd397be5767",
+  "integrity": {
+    "spec_sha256": "05dcc029a4fea093b130a0018a13e4732a04c1853e051c3e3f0e03877cc2c3ff",
+    "case_sha256": "fd0e6ac36e112dc2203996a0df00e225cb08b78154a8433185de40618e8280c3",
+    "config_sha256": "35f02ae220c2e122a0c76a1e21a6fb1a5d9eae03ec01ce0ab92a501ca9c4315f",
+    "manifest_sha256": "dafe1cd0608f51d0899de7955a9121083465151bc39109e285643e8ecc1e9d8a",
+    "policy_inputs_sha256": "599aee99ee7aaa9908c20f9379052609487a1a5f4fe5bfaff1083198dd7cec72",
+    "selections_sha256": "c782b867588e8505789dbff1e985f2e9ef3da77408989650abca773dbfe1ab5c",
+    "policy_records_sha256": "3a39923df15381800d368569e843de8769ea08a8e2e49b168b62897b7f39c72e",
+    "judgments_sha256": "b8c7ebb8524c11f167bbd76735a1e76e44cb39f550063435ef858a062680b69d"
+  },
+  "model": {
+    "provider": "ollama_generate",
+    "requested_model": "llama3:latest",
+    "response_model": "llama3:latest",
+    "model_digest": "365c0bd3c000a25d28ddbf732fe1c6add414de7275464c4e4d1c3b5fcb5d8ad1",
+    "parameter_size": "8.0B",
+    "quantization_level": "Q4_0",
+    "ollama_version": "0.30.6",
+    "temperature": 0,
+    "context_tokens": 8192,
+    "retrieval_top_k": 4,
+    "synthesis_mode": "passthrough"
+  },
+  "resource_use": {
+    "pipeline_executions": 13,
+    "unique_pipeline_execution_ids": 13,
+    "model_calls": 26,
+    "input_tokens": 78476,
+    "output_tokens": 2790,
+    "total_tokens": 81266
+  },
+  "candidate_and_graph": {
+    "candidate_count": 323,
+    "repair_labeled_candidate_count": 0,
+    "candidate_count_on_gold_block_p55": 0,
+    "normal_candidate_count": 323,
+    "graph_node_count": 1441,
+    "graph_edge_count": 1919,
+    "question_instability": {
+      "financebench_id_00678": 1.0,
+      "financebench_id_00585": 0.0
+    }
+  },
+  "policy_results": {
+    "budgets": [1, 2],
+    "every_policy_spent_exact_budget": true,
+    "every_selected_action": "inspected_no_change",
+    "random": {"budget_1_net_recovery": 0, "budget_2_net_recovery": 0},
+    "uncertainty": {"budget_1_net_recovery": 0, "budget_2_net_recovery": 0},
+    "individual_impact": {"budget_1_net_recovery": 0, "budget_2_net_recovery": 0},
+    "graph_aware": {"budget_1_net_recovery": 0, "budget_2_net_recovery": 0},
+    "individual_and_graph_selected_same_sets": true,
+    "graph_second_choice_score_discounted": true
+  },
+  "targeted_results": {
+    "baseline_correct": 0,
+    "no_op_correct": 0,
+    "A_correct": 0,
+    "B_correct": 0,
+    "AB_correct": 0,
+    "questions_per_condition": 2,
+    "no_op_net_recovery": 0,
+    "A_net_recovery": 0,
+    "B_net_recovery": 0,
+    "AB_net_recovery": 0,
+    "AB_interaction_count": 0,
+    "baseline_no_op_output_changed": true
+  },
+  "interpretation": {
+    "implemented": "candidate generation, leakage boundary, four allocation policies, budget charging, ideal repair join, fresh reruns, blind judgments, and recovery aggregation executed end to end",
+    "observed_failure": "BM25 retrieval did not retrieve the p55 source block, so neither injected error entered the common upstream candidate universe and no selectable policy could repair it",
+    "claim": "wiring and failure observability only; no policy-superiority, causal graph-value, human-performance, multimodal, natural-error, or population claim"
+  }
+}
