@@ -494,7 +494,10 @@ def run(
         raise ValueError("Preflight exceeds the frozen call budget")
     spec = _load_json(spec_path)
     case = _subset_case(_load_json(case_path), spec)
-    parent_manifest, parent_records = load_complete_run(parent_run / "targeted_conditions")
+    parent_case, parent_records = load_complete_run(parent_run / "targeted_conditions")
+    if digest(parent_case) != digest(case):
+        raise ValueError("Parent policy-visible run does not use the frozen v1.1 case")
+    parent_targeted_manifest = _load_json(parent_run / "targeted_conditions/manifest.json")
     parent_by_condition = {row["condition"]: row for row in parent_records if row["repeat_id"] == 0}
     git_state = _git_state(spec_path)
     out.mkdir(parents=True)
@@ -511,7 +514,7 @@ def run(
             (parent_run / "targeted_conditions/manifest.json").read_bytes()
         ),
         "parent_run_id": _load_json(parent_run / "manifest.json")["run_id"],
-        "parent_targeted_run_id": parent_manifest["run_id"],
+        "parent_targeted_run_id": parent_targeted_manifest["run_id"],
         "call_plan": plan,
         **git_state,
     }
