@@ -756,22 +756,26 @@ def _parse_qa(
         answer = value["answer"].strip()
     else:
         if not all(
-            isinstance(value[key], str) and value[key].strip()
+            isinstance(value[key], str)
             for key in ("conclusion", "quantitative_explanation")
         ):
-            raise PipelineError("Quantitative QA conclusion or explanation is missing")
+            raise PipelineError("Quantitative QA conclusion or explanation must be a string")
         calculations = value["calculations"]
         if not isinstance(calculations, list) or not all(
-            isinstance(item, str) and item.strip() for item in calculations
+            isinstance(item, str) for item in calculations
         ):
             raise PipelineError("Quantitative QA calculations must be a string array")
-        answer = "\n".join(
-            [
-                value["conclusion"].strip(),
-                value["quantitative_explanation"].strip(),
-                *[item.strip() for item in calculations],
-            ]
-        )
+        parts = [
+            value["conclusion"].strip(),
+            value["quantitative_explanation"].strip(),
+            *[item.strip() for item in calculations],
+        ]
+        # The provider schema requires strings but cannot guarantee nonempty content. Preserve
+        # blank required fields in structured_output so the evaluator can score them as missing;
+        # aborting here would discard the model response and bias failure accounting.
+        answer = "\n".join(part for part in parts if part)
+        if not answer:
+            answer = "[MODEL_RETURNED_NO_QUANTITATIVE_CONTENT]"
     evidence = value["evidence_chunk_ids"]
     if not isinstance(evidence, list) or not all(isinstance(item, str) for item in evidence):
         raise PipelineError("QA evidence_chunk_ids must be a string array")
@@ -1057,6 +1061,23 @@ def run_pipeline(
                 "evidence_chunk_ids": evidence_chunk_ids,
                 "qa_output_contract": config.qa_output_contract,
                 "structured_output": structured_output,
+                "qa_contract_violations": (
+                    [
+                        field
+                        for field in ("conclusion", "quantitative_explanation")
+                        if not structured_output.get(field, "").strip()
+                    ]
+                    + (
+                        ["calculations"]
+                        if not any(
+                            item.strip()
+                            for item in structured_output.get("calculations", [])
+                        )
+                        else []
+                    )
+                )
+                if config.qa_output_contract == "quantitative_v2"
+                else [],
             }
         )
         trace.append(
@@ -1072,6 +1093,7 @@ def run_pipeline(
                     "evidence_block_ids": evidence_block_ids,
                     "qa_output_contract": config.qa_output_contract,
                     "structured_output": structured_output,
+                    "qa_contract_violations": answers[-1]["qa_contract_violations"],
                 },
                 "raw_output": generation.text,
                 "provider_response_id": generation.response_id,

@@ -333,9 +333,43 @@ def test_quantitative_output_contract_is_general_and_preserves_fields(payload):
         "The stated value is 100 units.",
         "100 / 1 = 100",
     ]
+    assert answer["qa_contract_violations"] == []
     assert result["metadata"]["prompt_versions"]["qa"] == (
         "grounded-qa-quantitative-json-v2"
     )
+
+
+def test_quantitative_contract_preserves_blank_fields_for_failure_scoring(payload):
+    class BlankExplanationGenerator(QuantitativeFakeGenerator):
+        def generate(self, **kwargs):
+            generation = super().generate(**kwargs)
+            value = json.loads(generation.text)
+            value["quantitative_explanation"] = ""
+            value["calculations"] = []
+            return Generation(
+                text=json.dumps(value),
+                response_id=generation.response_id,
+                model=generation.model,
+                usage=generation.usage,
+            )
+
+    result = run_pipeline(
+        payload,
+        RunnerConfig(
+            model="fake-test-model",
+            synthesis_mode="passthrough",
+            qa_output_contract="quantitative_v2",
+        ),
+        BlankExplanationGenerator(),
+    )
+    answer = result["answers"][0]
+    assert answer["answer"] == "Revenue was 100."
+    assert answer["structured_output"]["quantitative_explanation"] == ""
+    assert answer["qa_contract_violations"] == [
+        "quantitative_explanation",
+        "calculations",
+    ]
+    assert result["trace"][-1]["raw_output"]
 
 
 def test_config_rejects_unknown_qa_output_contract():
