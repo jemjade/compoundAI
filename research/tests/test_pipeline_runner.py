@@ -49,6 +49,33 @@ class FakeGenerator:
         )
 
 
+class QuantitativeFakeGenerator(FakeGenerator):
+    def generate(self, *, stage, instructions, input_text, max_output_tokens):
+        self.calls.append(
+            {
+                "stage": stage,
+                "instructions": instructions,
+                "input_text": input_text,
+                "max_output_tokens": max_output_tokens,
+            }
+        )
+        chunk_id = json.loads(input_text)["retrieved_chunks"][0]["chunk_id"]
+        output = json.dumps(
+            {
+                "conclusion": "Revenue was 100.",
+                "quantitative_explanation": "The stated value is 100 units.",
+                "calculations": ["100 / 1 = 100"],
+                "evidence_chunk_ids": [chunk_id],
+            }
+        )
+        return Generation(
+            text=output,
+            response_id=f"fake-{len(self.calls)}",
+            model="fake-test-model",
+            usage={"input_tokens": 2, "output_tokens": 1, "total_tokens": 3},
+        )
+
+
 @pytest.fixture
 def payload():
     return {
@@ -277,6 +304,43 @@ def test_ollama_adapter_rejects_truncated_response_and_nonlocal_url():
 def test_config_rejects_conflicting_sampling_controls():
     with pytest.raises(ValueError, match="not both"):
         RunnerConfig(model="fake", temperature=0.2, top_p=0.9).validate()
+
+
+def test_quantitative_output_contract_is_general_and_preserves_fields(payload):
+    fake = QuantitativeFakeGenerator()
+    result = run_pipeline(
+        payload,
+        RunnerConfig(
+            model="fake-test-model",
+            synthesis_mode="passthrough",
+            qa_output_contract="quantitative_v2",
+        ),
+        fake,
+    )
+    qa_call = fake.calls[0]
+    assert "material values" in qa_call["instructions"]
+    assert "expected" not in qa_call["instructions"].lower()
+    assert "2022" not in qa_call["instructions"]
+    answer = result["answers"][0]
+    assert answer["structured_output"] == {
+        "conclusion": "Revenue was 100.",
+        "quantitative_explanation": "The stated value is 100 units.",
+        "calculations": ["100 / 1 = 100"],
+        "evidence_chunk_ids": [answer["evidence_chunk_ids"][0]],
+    }
+    assert answer["answer"].splitlines() == [
+        "Revenue was 100.",
+        "The stated value is 100 units.",
+        "100 / 1 = 100",
+    ]
+    assert result["metadata"]["prompt_versions"]["qa"] == (
+        "grounded-qa-quantitative-json-v2"
+    )
+
+
+def test_config_rejects_unknown_qa_output_contract():
+    with pytest.raises(ValueError, match="qa_output_contract"):
+        RunnerConfig(model="fake", qa_output_contract="oracle").validate()
 
 
 def test_preflight_counts_all_five_fresh_pipeline_runs(payload):
