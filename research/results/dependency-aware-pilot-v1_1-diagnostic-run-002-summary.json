@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "status": "IMPLEMENTED_DEVELOPMENT_DIAGNOSTIC",
+  "spec_id": "dependency-aware-candidate-recall-evidence-access-diagnostic-v1.1",
+  "run_id": "4a403b86-1095-43f2-91d4-d877f3764186",
+  "raw_run_directory": "research/work/preserved-dependency-aware-pilot-v1_1-diagnostic-run-002",
+  "execution_commit": "69c41756220e6ffc428f5422da899bb9483d2eb5",
+  "state_aware_adjudication_commit": "beb3f64",
+  "integrity": {
+    "spec_sha256": "b3d90b787bc028a4d9b737c185779d926876b9112933042f1ae3578f2aff233d",
+    "records_sha256": "bb57eaa09d2e306cd53982d1e4dfa708cf22bb5620818f92b52dc36bb6ca560b",
+    "policy_inputs_sha256": "8452e9d8511a62ae1320432363f48e0b7e6916798ec58510f8e5972ad99b24e2",
+    "candidate_diagnostics_sha256": "7156f0d2cb3d4f9ade8092895b5d79a75031b8730f3ecdc2ac4367d35c962834",
+    "state_aware_summary_sha256": "947d82874ece1d48247f2280d7168d5c260d24626bfd7292d0cce8a97b65661f",
+    "preservation_manifest_v2_sha256": "01760acb55a1aba46b06fa0c048c5550fe3e186f66d464997bedf8612776627e"
+  },
+  "model": {
+    "provider": "ollama_generate",
+    "model": "llama3:latest",
+    "digest": "365c0bd3c000a25d28ddbf732fe1c6add414de7275464c4e4d1c3b5fcb5d8ad1",
+    "parameter_size": "8.0B",
+    "quantization": "Q4_0",
+    "ollama_version": "0.30.6",
+    "temperature": 0,
+    "context_tokens": 8192,
+    "synthesis_mode": "passthrough",
+    "general_retrieval_top_k": 4
+  },
+  "resource_use": {
+    "pipeline_executions": 4,
+    "unique_pipeline_execution_ids": 4,
+    "model_calls": 8,
+    "input_tokens": 14976,
+    "output_tokens": 704,
+    "total_tokens": 15680
+  },
+  "candidate_diagnostics": {
+    "candidate_count": 6777,
+    "repair_candidate_count": 2,
+    "repair_label_count": 2,
+    "candidate_recall": 1.0,
+    "zero_observed_reach_count": 6454,
+    "zero_observed_reach_fraction": 0.95233879,
+    "zero_reach_with_positive_estimated_relevance_count": 6453,
+    "unique_feature_tuple_count": 5,
+    "unique_policy_score_tuple_count": 4,
+    "tied_candidate_count": 6777,
+    "tied_candidate_fraction": 1.0,
+    "id_tie_break_selection_count": 9,
+    "selected_repair_candidate_count": 0,
+    "repair_feature_group_candidate_count": 6453,
+    "repair_feature_group_normal_candidate_count": 6451,
+    "individual_graph_symmetric_difference_budget_1": 0,
+    "individual_graph_symmetric_difference_budget_2": 0
+  },
+  "condition_outcomes": [
+    {
+      "condition": "A_damaged_general",
+      "gross_answer": "Insufficient evidence",
+      "tax_answer": "Insufficient evidence",
+      "gross_answer_correct": false,
+      "gross_evidence_correct": false,
+      "tax_financebench_answer_correct": false,
+      "tax_financebench_evidence_correct": false,
+      "tax_document_answer_correct": false,
+      "tax_document_evidence_correct": true
+    },
+    {
+      "condition": "B_repaired_general",
+      "gross_answer": "Insufficient evidence to determine whether Boeing has an improving gross margin profile as of FY2022.",
+      "tax_answer": "Insufficient evidence",
+      "gross_answer_correct": false,
+      "gross_evidence_correct": false,
+      "tax_financebench_answer_correct": false,
+      "tax_financebench_evidence_correct": false,
+      "tax_document_answer_correct": false,
+      "tax_document_evidence_correct": false
+    },
+    {
+      "condition": "C_damaged_oracle_evidence",
+      "gross_answer": "The evidence is insufficient to determine if Boeing has an improving gross margin profile as of FY2022.",
+      "tax_answer": "The evidence is insufficient to compare Boeing's effective tax rate in FY2022 to FY2021.",
+      "gross_answer_correct": false,
+      "gross_evidence_correct": false,
+      "tax_financebench_answer_correct": false,
+      "tax_financebench_evidence_correct": true,
+      "tax_document_answer_correct": false,
+      "tax_document_evidence_correct": true
+    },
+    {
+      "condition": "D_repaired_oracle_evidence",
+      "gross_answer": "Yes, Boeing has an improving gross margin profile as of FY2022.",
+      "gross_direction_correct": true,
+      "tax_answer": "The evidence is insufficient to compare Boeing's effective tax rate in FY2022 to FY2021.",
+      "gross_answer_correct": false,
+      "gross_evidence_correct": true,
+      "tax_financebench_answer_correct": false,
+      "tax_financebench_evidence_correct": true,
+      "tax_document_answer_correct": false,
+      "tax_document_evidence_correct": true
+    }
+  ],
+  "failure_localization": {
+    "candidate_generation": "pass for inclusion: A and B both present; not sufficient for selection because both have observed reach zero and tie with 6,451 normal candidates",
+    "general_retrieval_gross": "fail: neither damaged nor repaired general retrieval returned p28 or a state-sufficient p55 block",
+    "general_retrieval_tax": "document-reported evidence available via p77, but FinanceBench-sign evidence absent",
+    "oracle_transport_and_truncation": "pass: C 1,287 characters and D 1,289 characters, one full p55 chunk each, required headers/units/years/rows present",
+    "evidence_representation": "partially degraded/uncertain: pypdf flattened the table and left the 3,502/3,017 gross-profit row unlabeled",
+    "answer_generation": "fail: D recognized improving direction but omitted required values/calculation; D tax did not calculate either reference convention",
+    "judgment_mechanics": "pass for four authored evaluator fixtures; tax ground-truth semantics remain conflicted"
+  },
+  "stop_rule_triggered": true,
+  "claim": "candidate-recall and failure-localization wiring only; no policy-superiority or deployment-performance claim"
+}

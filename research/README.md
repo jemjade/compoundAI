@@ -81,6 +81,25 @@ must be reviewed manually.
 
 동결된 v1은 소급 변경하지 않으며 run 001을 독립 최종 평가로 재사용하지 않는다.
 
+## v1.1 후보/근거 접근 진단
+
+run 001의 후보 누락과 downstream 근거 접근 실패를 분리하기 위해 v1.1 development
+diagnostic을 실행했다. 전체 문서의 숫자 span 6,777개를 열거해 A/B 후보 포함률은 2/2가
+됐지만, 95.23%가 기존 top-k trace 기준 reach 0이고 모든 후보가 점수 동점 그룹에
+속했다. A/B는 6,451개 정상 후보와 동일한 특징을 가져 어떤 scored policy도 선택하지
+못했다.
+
+일반 검색은 gross-margin 유효 근거를 찾지 못했다. 복구된 p55 전체를 강제로 제공한 D는
+방향만 맞히고 필수 수치·계산을 생략했으며 tax는 답하지 못했다. 문맥은 잘리지 않았지만
+pypdf의 flattened 표에서 gross-profit 행 라벨이 사라져 evidence representation과 QA
+reasoning을 아직 분리할 수 없다. 동결 stop rule에 따라 더 큰 정책 비교는 중단했다.
+
+- 명세: `research/specs/experiment_spec_v1_1.json`
+- 데이터 연결 감사: `research/reports/dependency-aware-pilot-v1_1-data-linkage.md`
+- 실행 보고서: `research/reports/dependency-aware-pilot-v1_1-diagnostic-run-002.md`
+- 추적 요약: `research/results/dependency-aware-pilot-v1_1-diagnostic-run-002-summary.json`
+- 원시 산출물: `research/work/preserved-dependency-aware-pilot-v1_1-diagnostic-run-002/`
+
 ## 지금 만들어진 자료
 
 2026-09-07 다음 입력을 실제 생성했다.
