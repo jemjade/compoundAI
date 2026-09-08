@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "protocol_id": "dependency-aware-independent-controlled-evaluation-v1",
+  "status": "FROZEN_BEFORE_POLICY_PERFORMANCE_NOT_YET_EXECUTED",
+  "frozen_after_development_run": "dependency-aware-pilot-v1_3-development-run-005",
+  "frozen_before_any_listed_document_model_or_policy_performance": true,
+  "claim_boundary": "held out from v1.3 prompt, feature-weight, and case tuning; controlled text errors only; not a blinded dataset release, natural-error frequency study, multimodal evaluation, or human-repair study",
+  "researcher_blinding": "not guaranteed because the public FinanceBench metadata and answers are locally available; no listed PDF was visually audited or run through the QA/policy pipeline before this protocol was frozen",
+  "source": {
+    "dataset": "FinanceBench public 150-question release",
+    "commit": "cc39aeb4afdf33909ee1412188bf89035950c2eb",
+    "eligible_document_rule": [
+      "doc_name ends with _10K",
+      "at least three released single-document questions whose evidence entries all name the same document",
+      "exclude every Boeing document and every entity used in v1.0-v1.3 development: Boeing, AMCOR, Best Buy, and AMD"
+    ],
+    "document_ranking": "ascending SHA-256 hex of source_commit + ':' + doc_name",
+    "document_count": 3,
+    "documents": [
+      {
+        "document_id": "PFIZER_2021_10K",
+        "ranking_sha256": "04be56d9bb120349dfacd8e754ecb13f488f60d69bd8169d31c768351556affd",
+        "question_ids": ["financebench_id_00302", "financebench_id_00702", "financebench_id_02416"]
+      },
+      {
+        "document_id": "PEPSICO_2022_10K",
+        "ranking_sha256": "2e74e42a1586776e598b29047fe70dbd2c236b4cc94782575d642404dfc2808a",
+        "question_ids": ["financebench_id_00735", "financebench_id_01009", "financebench_id_01328"]
+      },
+      {
+        "document_id": "AES_2022_10K",
+        "ranking_sha256": "5071250ce4dbd8d371088bc96e4dee87c2f6d2e1e9318189ea626d107deb44b8",
+        "question_ids": ["financebench_id_00540", "financebench_id_01319", "financebench_id_10420"]
+      }
+    ],
+    "question_selection": "within each selected document, sort eligible financebench_id lexicographically and take the first three",
+    "question_count": 9,
+    "replacement_rule": "do not replace a selected question or document because retrieval, QA, candidate generation, repair, or policy behavior is poor; source corruption or unresolved reference conflict is retained and excluded only from the primary effect denominator with an explicit count"
+  },
+  "method_fixed_from_development": {
+    "primary_parser": "pypdf 6.10.0 page text",
+    "secondary_parser": "PyMuPDF 1.28.2 numeric tokens and word geometry",
+    "qa_model": "llama3:latest with immutable digest checked at execution",
+    "pipeline": "deterministic passthrough, document-isolated BM25 top-k=6, quantitative_v2 prompt, temperature=0, context=8192, max output=700",
+    "anomaly_score": "0.70*binary numeric-token-count disagreement + 0.30*maximum normalized residual of an applicable predeclared statement identity",
+    "unavailable_feature_rule": "an unavailable row/column or accounting identity feature is null/zero with availability recorded; it is not inferred from gold",
+    "ideal_fix_assumption": "exact repair after an injected error is selected; not a human success probability"
+  },
+  "reference_audit": {
+    "timing": "after this protocol freeze and before model execution",
+    "checks": ["question/reference task alignment", "PDF page and printed page", "row label", "period column", "unit and sign", "calculation", "duplicate and alternate evidence"],
+    "conflict_rule": "retain the question and conflict record; withhold unconditional correctness and main-effect inclusion until adjudicated",
+    "policy_visibility": "none of the reference audit, evidence annotations, or conflict labels enters candidate generation or selection"
+  },
+  "controlled_error_generation": {
+    "timing": "after reference audit and before policy execution, without observing any model or policy outcome on these documents",
+    "candidate_base": "all primary-parser numeric spans on the complete damaged documents, including normal spans",
+    "eligible_injection": [
+      "numeric span lies in a released evidence page and participates in a source-audited extraction or calculation route",
+      "one internal digit is deleted while leaving a syntactically numeric nonempty span",
+      "choice is the lowest SHA-256 of question_id:block_id:start among eligible spans for that question",
+      "at most one injected span per question and at most two per document"
+    ],
+    "non_effect_rule": "do not require the corruption to change a model answer; duplicate/alternate routes and unchanged answers are retained",
+    "miss_rule": "if no eligible span exists or the corrupted span is absent from the full candidate universe, retain the question as injection/candidate miss and do not replace it",
+    "nature": "post-extraction controlled digit deletion; never report as natural parser error"
+  },
+  "policies": {
+    "names": ["Random", "Uncertainty", "Individual impact", "Graph-aware allocation"],
+    "common_input": "same frozen candidates, observable features, estimated provenance edges, unit costs, and budget",
+    "individual_vs_graph": "same anomaly and ideal-fix inputs; only Graph-aware discounts marginal downstream-question overlap with already selected candidates",
+    "tie_break": "ascending candidate_id; report every selection decided by an ID tie",
+    "oracle": "actual repair effect is forbidden from selection and may appear only as an explicitly labeled post-selection reference"
+  },
+  "cost_and_budget": {
+    "unit": "one inspected numeric span",
+    "normal_candidate_cost": 1,
+    "error_candidate_cost": 1,
+    "budgets": [3, 6],
+    "budget_interpretation": "one and two inspected spans per document on average; no human-time claim"
+  },
+  "executions": {
+    "clean_general": "one fresh document-isolated execution per document",
+    "clean_oracle": "one fresh per-question diagnostic, excluded from system performance",
+    "targeted_states": "clean, damaged, each eligible individual repair, and simultaneous repair; every state is fresh and uncached",
+    "policy_states": "one fresh downstream execution per policy-budget pair",
+    "failure_rule": "failed, missing, unparseable, unsupported, or unreviewed results are not successes"
+  },
+  "metrics": {
+    "qa_dimensions": ["conclusion correctness", "stated numeric accuracy", "required explanation completeness", "evidence sufficiency"],
+    "repair": ["recovered answers", "newly wrong answers", "net recovery", "clean/no-op variation", "individual-versus-simultaneous interaction"],
+    "selection": ["candidate inclusion", "error-candidate recall", "feature-vector and score uniqueness", "tie rate", "ID tie-break count", "selected-set equality", "graph overlap estimate versus observed repair overlap"],
+    "reporting_slices": {
+      "overall_deployment_like": "all nine frozen questions including candidate misses, retrieval failures, non-repairs, and identical selected sets",
+      "conditional": "questions whose injected error is present in the frozen candidate universe; report alongside, never instead of overall"
+    },
+    "uncertainty": "document-clustered intervals or exact paired randomization only if the achieved sample supports them; otherwise raw counts and explicit small-sample limitation"
+  },
+  "restart_gate": {
+    "required_before_performance_run": [
+      "source PDFs and parser snapshots preserved with checksums",
+      "all nine reference/evidence pairs audited without changing the list",
+      "injection and candidate manifests serialized before selections",
+      "at least one observable feature has nonzero variation",
+      "different downstream dependency structures are present; otherwise run may proceed only as a recorded null-structure diagnostic, not a graph-policy test"
+    ],
+    "current_status": "SOURCE_SNAPSHOT_PENDING; POLICY PERFORMANCE NOT STARTED"
+  }
+}
