@@ -22,6 +22,12 @@ from research.allocation_pilot import (
     deterministic_judgments,
     preflight,
 )
+from research.diagnostic_v1_1 import (
+    analyze_distinguishability,
+    build_full_document_policy_input,
+    diagnostic_judgments,
+    evaluator_sanity,
+)
 from research.pipeline_runner import Generation, RunnerConfig, run_pipeline
 
 
@@ -38,9 +44,7 @@ class LiveFakeGenerator:
         chunk_id = value["retrieved_chunks"][0]["chunk_id"]
         answer = "6,608" if "revenue" in value["question"].lower() else "0.62%"
         return Generation(
-            text=json.dumps(
-                {"answer": answer, "evidence_chunk_ids": [chunk_id]}
-            ),
+            text=json.dumps({"answer": answer, "evidence_chunk_ids": [chunk_id]}),
             response_id=f"response-{chunk_id}",
             model="live-fake",
             usage={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
@@ -216,6 +220,21 @@ def test_random_is_seeded_and_every_policy_respects_budget():
         assert len(selected["selected_candidate_ids"]) == 1
 
 
+def test_score_ties_and_candidate_id_tie_break_are_recorded():
+    candidates = [_candidate("c2", 0.5, ["q1"]), _candidate("c1", 0.5, ["q1"])]
+    selected = select_candidates(
+        candidates,
+        policy="individual_impact",
+        budget=1,
+        seed_material=["fixed"],
+        question_count=3,
+    )
+
+    assert selected["selected_candidate_ids"] == ["c1"]
+    assert selected["steps"][0]["best_score_tie_count"] == 2
+    assert selected["steps"][0]["id_tie_break_used"] is True
+
+
 def test_forbidden_evaluation_fields_are_rejected():
     with pytest.raises(ValueError, match="Forbidden"):
         assert_policy_input_safe({"candidates": [{"repair": "secret"}]})
@@ -327,6 +346,81 @@ def test_selected_repair_candidate_applies_exact_edit_before_fresh_rerun(monkeyp
     assert captured["payload"]["blocks"][0]["text"] != case["blocks"][0]["text"]
 
 
+def test_accounting_parentheses_candidate_contains_inner_repair_span(case):
+    accounting_case = copy.deepcopy(case)
+    block = accounting_case["blocks"][0]
+    block["text"] = block["text"][:24] + "(" + block["text"][24:29] + ")" + block["text"][29:]
+    accounting_case["repairs"][1]["start"] = 25
+    accounting_case["repairs"][1]["end"] = 30
+    policy_input = build_full_document_policy_input(
+        case=accounting_case,
+        baseline_record=_record(accounting_case, "baseline"),
+        no_op_record=_record(accounting_case, "no_op"),
+        question_ids=["q1", "q2"],
+        spec_id="test-v1.1",
+    )
+    selections = [
+        select_candidates(
+            policy_input["candidates"],
+            policy=policy,
+            budget=budget,
+            seed_material=[policy, budget],
+            question_count=2,
+        )
+        for policy in ("random", "uncertainty", "individual_impact", "graph_aware")
+        for budget in (1, 2)
+    ]
+    diagnostics = analyze_distinguishability(accounting_case, policy_input, selections)
+
+    assert diagnostics["candidate_recall"] == 1.0
+    repair_rows = {row["repair_id"]: row for row in diagnostics["repair_candidates"]}
+    assert repair_rows["A"]["observed_text"] == "6,608"
+    assert repair_rows["B"]["observed_text"] == "(6,106)"
+
+
+def test_forced_evidence_uses_full_named_block_without_answer_fields(case):
+    payload = {
+        "schema_version": 1,
+        "repeat_id": 0,
+        "blocks": [
+            *case["blocks"],
+            {
+                "block_id": "doc:p2",
+                "document_id": "doc",
+                "page_number": 2,
+                "source_kind": "pypdf_page_text",
+                "text": "required oracle context 2022 123",
+            },
+        ],
+        "questions": case["questions"],
+    }
+    response = run_pipeline(
+        payload,
+        RunnerConfig(
+            provider="ollama_generate",
+            model="live-fake",
+            base_url="http://127.0.0.1:11434",
+            api_key_env=None,
+            synthesis_mode="passthrough",
+            chunk_chars=500,
+            chunk_overlap_chars=10,
+            retrieval_top_k=1,
+        ),
+        LiveFakeGenerator(),
+        forced_evidence_block_ids=("doc:p2",),
+    )
+
+    retrievals = [row for row in response["trace"] if row["stage"] == "retrieval"]
+    assert all(row["retrieval_mode"].startswith("forced_source") for row in retrievals)
+    assert all(row["output"][0]["source_block_ids"] == ["doc:p2"] for row in retrievals)
+    qa_inputs = [row["input_text"] for row in response["trace"] if row["stage"] == "qa"]
+    assert all("required oracle context" in value for value in qa_inputs)
+    assert all(
+        "reference_answer" not in value and "correctness" not in value for value in qa_inputs
+    )
+    assert response["metadata"]["forced_evidence_block_ids"] == ["doc:p2"]
+
+
 def test_live_result_gate_rejects_mock_or_incomplete_metadata(case):
     response = _record(case, "baseline")["response"]
     _validate_live_response(response)
@@ -411,3 +505,34 @@ def test_strict_deterministic_judge_and_recovery_aggregation():
         "regressed_question_ids": ["q2"],
         "net_recovery": 0,
     }
+
+
+def test_v1_1_dual_reference_evaluator_and_authored_sanity_fixtures():
+    sanity = evaluator_sanity()
+    assert sanity["status"] == "pass"
+    assert all(sanity["checks"])
+    assert all(row["fixture_kind"] == "AUTHORED_EVALUATOR_FIXTURE" for row in sanity["fixtures"])
+
+    tax = diagnostic_judgments(
+        [
+            {
+                "judgment_id": "tax",
+                "question_id": "financebench_id_00585",
+                "question": "fixture",
+                "prediction": "The filing reports -0.6% for FY2022 and 14.8% for FY2021.",
+                "prediction_evidence_block_ids": ["BOEING_2022_10K:p24"],
+                "cited_evidence": [],
+                "reference_answer": "fixture",
+                "reference_evidence": [],
+                "financebench_answer_correct": None,
+                "financebench_evidence_correct": None,
+                "document_answer_correct": None,
+                "document_evidence_correct": None,
+                "judge_id": "",
+                "rationale": "",
+            }
+        ]
+    )[0]
+    assert tax["financebench_answer_correct"] is False
+    assert tax["document_answer_correct"] is True
+    assert tax["document_evidence_correct"] is True

@@ -17,9 +17,7 @@ from typing import Any
 
 from research.pilot import digest
 
-NUMERIC_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9_])\(?[-+$]?\d[\d,]*(?:\.\d+)?%?\)?(?![A-Za-z0-9_])"
-)
+NUMERIC_PATTERN = re.compile(r"(?<![A-Za-z0-9_])\(?[-+$]?\d[\d,]*(?:\.\d+)?%?\)?(?![A-Za-z0-9_])")
 POLICIES = ("random", "uncertainty", "individual_impact", "graph_aware")
 FORBIDDEN_POLICY_KEYS = {
     "after",
@@ -64,8 +62,7 @@ def _question_instability(
         first_evidence = set(first[question_id].get("evidence_block_ids", []))
         second_evidence = set(second[question_id].get("evidence_block_ids", []))
         values[question_id] = round(
-            0.5 * float(answer_changed)
-            + 0.5 * (1.0 - jaccard(first_evidence, second_evidence)),
+            0.5 * float(answer_changed) + 0.5 * (1.0 - jaccard(first_evidence, second_evidence)),
             8,
         )
     return values
@@ -89,9 +86,7 @@ def _trace_parts(record: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], lis
     return chunks, retrievals
 
 
-def _candidate_id(
-    document_id: str, block_id: str, start: int, end: int, observed_text: str
-) -> str:
+def _candidate_id(document_id: str, block_id: str, start: int, end: int, observed_text: str) -> str:
     value = digest([document_id, block_id, start, end, observed_text])[:24]
     return f"candidate:{value}"
 
@@ -129,9 +124,7 @@ def _add_graph_trace(
                     "end": chunk["end"],
                     "source_block_ids": chunk["source_block_ids"],
                 }
-                graph_edges.add(
-                    (chunk["parent_synthesis_id"], chunk_id, "transform_to_chunk")
-                )
+                graph_edges.add((chunk["parent_synthesis_id"], chunk_id, "transform_to_chunk"))
         elif stage == "retrieval":
             question_id = row["question_id"]
             for chunk in row.get("output", []):
@@ -166,9 +159,7 @@ def build_policy_input(
 
     blocks = {block["block_id"]: block for block in case["blocks"]}
     questions = {
-        row["question_id"]: row
-        for row in case["questions"]
-        if row["question_id"] in question_ids
+        row["question_id"]: row for row in case["questions"] if row["question_id"] in question_ids
     }
     if set(questions) != set(question_ids):
         raise ValueError("Frozen questions are missing from the case")
@@ -236,9 +227,7 @@ def build_policy_input(
     candidates = []
     for key, base in candidate_rows.items():
         descendants = sorted(candidate_questions[key])
-        risk = (1.0 + sum(instability[q] for q in descendants)) / (
-            2.0 + len(descendants)
-        )
+        risk = (1.0 + sum(instability[q] for q in descendants)) / (2.0 + len(descendants))
         reach = len(descendants) / len(question_ids)
         repairability = 1.0
         cost = 1
@@ -259,9 +248,7 @@ def build_policy_input(
             },
             "scores": {
                 "uncertainty": round(risk / cost, 8),
-                "individual_impact": round(
-                    risk * repairability * reach / cost, 8
-                ),
+                "individual_impact": round(risk * repairability * reach / cost, 8),
             },
         }
         candidates.append(candidate)
@@ -365,6 +352,8 @@ def select_candidates(
                 {
                     "candidate_id": row["candidate_id"],
                     "score_at_selection": None,
+                    "best_score_tie_count": None,
+                    "id_tie_break_used": False,
                     "spent_after": spent,
                 }
             )
@@ -375,16 +364,28 @@ def select_candidates(
             candidates,
             key=lambda row: (-row["scores"][policy], row["candidate_id"]),
         )
+        remaining_ids = {row["candidate_id"] for row in ordered}
         for row in ordered:
             cost = row["features"]["verification_cost"]
             if spent + cost > budget:
+                remaining_ids.remove(row["candidate_id"])
                 continue
+            tied = sum(
+                1
+                for other in ordered
+                if other["candidate_id"] in remaining_ids
+                and spent + other["features"]["verification_cost"] <= budget
+                and other["scores"][policy] == row["scores"][policy]
+            )
             selected.append(row["candidate_id"])
+            remaining_ids.remove(row["candidate_id"])
             spent += cost
             steps.append(
                 {
                     "candidate_id": row["candidate_id"],
                     "score_at_selection": row["scores"][policy],
+                    "best_score_tie_count": tied,
+                    "id_tie_break_used": tied > 1,
                     "spent_after": spent,
                 }
             )
@@ -401,8 +402,13 @@ def select_candidates(
                 if spent + cost > budget:
                     continue
                 marginal = (
-                    row["features"]["error_risk"]
-                    * row["features"]["expected_repairability"]
+                    row["features"].get(
+                        "candidate_instability_proxy", row["features"].get("error_risk")
+                    )
+                    * row["features"].get(
+                        "ideal_repair_given_detection",
+                        row["features"].get("expected_repairability"),
+                    )
                     / (cost * question_count)
                     * sum(
                         1.0 / (1.0 + descendant_counts[question_id])
@@ -413,6 +419,7 @@ def select_candidates(
             if not options:
                 break
             score, candidate_id = min(options, key=lambda row: (-row[0], row[1]))
+            tie_count = sum(option_score == score for option_score, _ in options)
             selected.append(candidate_id)
             remaining.remove(candidate_id)
             spent += by_id[candidate_id]["features"]["verification_cost"]
@@ -422,6 +429,8 @@ def select_candidates(
                 {
                     "candidate_id": candidate_id,
                     "score_at_selection": score,
+                    "best_score_tie_count": tie_count,
+                    "id_tie_break_used": tie_count > 1,
                     "spent_after": spent,
                 }
             )

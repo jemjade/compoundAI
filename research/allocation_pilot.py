@@ -217,20 +217,19 @@ def _run_payload(
 def _repair_matches(
     case: dict[str, Any], candidates: list[dict[str, Any]]
 ) -> dict[str, dict[str, Any]]:
-    repairs = {
-        (row["block_id"], row["start"], row["end"], row["before"]): row
-        for row in case["repairs"]
-    }
     matches = {}
     for candidate in candidates:
-        key = (
-            candidate["block_id"],
-            candidate["start"],
-            candidate["end"],
-            candidate["observed_text"],
-        )
-        if key in repairs:
-            matches[candidate["candidate_id"]] = repairs[key]
+        for repair in case["repairs"]:
+            if candidate["block_id"] != repair["block_id"]:
+                continue
+            relative_start = repair["start"] - candidate["start"]
+            relative_end = repair["end"] - candidate["start"]
+            if (
+                0 <= relative_start < relative_end <= len(candidate["observed_text"])
+                and candidate["observed_text"][relative_start:relative_end]
+                == repair["before"]
+            ):
+                matches[candidate["candidate_id"]] = repair
     return matches
 
 
