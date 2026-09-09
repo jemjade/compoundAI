@@ -9,6 +9,7 @@ import httpx
 from app.adapters.parsers.base import ParserAdapter, ParserExecutionResult
 from app.core.config import get_settings
 from app.core.exceptions import AppError
+from app.normalizers.docling_normalizer import normalize_docling_document
 from app.normalizers.text_normalizer import text_to_canonical
 from app.schemas.canonical_document import CanonicalDocument
 
@@ -234,6 +235,21 @@ class DoclingHttpAdapter(ParserAdapter):
         json_content = (
             document_result.get("json_content") if isinstance(document_result, dict) else None
         )
+        if (
+            isinstance(json_content, dict)
+            and json_content.get("schema_name") == "DoclingDocument"
+            and isinstance(json_content.get("pages"), dict)
+            and json_content["pages"]
+        ):
+            return normalize_docling_document(
+                json_content,
+                document_id=document_id,
+                run_id=run_id,
+                parser_name=self.connector.name,
+                parser_version=self.connector.model_version,
+                parser_config=self._last_config,
+                markdown=execution_result.markdown,
+            )
         return text_to_canonical(
             text=execution_result.text or "",
             markdown=execution_result.markdown,

@@ -17,6 +17,7 @@ from app.adapters.parsers.paddle_structure import (
 )
 from app.core.config import Settings
 from app.core.exceptions import AppError
+from app.normalizers.paddle_normalizer import normalize_paddle_response
 
 
 class _Value(Enum):
@@ -26,6 +27,10 @@ class _Value(Enum):
 class _Array:
     def tolist(self) -> list[list[float]]:
         return [[1.0, 2.0], [3.0, 4.0]]
+
+
+class _NestedJson:
+    json = {"block_label": "table", "block_content": "kept"}
 
 
 class _Result:
@@ -51,7 +56,12 @@ class _Result:
                         "block_order": 1,
                     },
                 ],
-                "table_res_list": [{"pred_html": "<table><tr><td>A</td></tr></table>"}],
+                "table_res_list": [
+                    {
+                        "pred_html": "<table><tr><td>A</td></tr></table>",
+                        "cell_box_list": [[1, 50, 20, 70]],
+                    }
+                ],
                 "array": _Array(),
             }
         }
@@ -66,6 +76,16 @@ class _InvalidResult:
     @property
     def markdown(self) -> dict[str, str]:
         return {}
+
+
+class _MarkdownFailureResult(_Result):
+    @property
+    def markdown(self) -> dict[str, str]:
+        raise KeyError("page_continuation_flags")
+
+    @markdown.setter
+    def markdown(self, _value: object) -> None:
+        pass
 
 
 class _Pipeline:
@@ -172,6 +192,11 @@ async def test_adapter_is_lazy_reuses_pipeline_and_normalizes(tmp_path: Path) ->
     assert canonical.pages[0].blocks[0].type == "title"
     assert canonical.pages[0].blocks[1].type == "table"
     assert canonical.pages[0].blocks[1].html == "<table><tr><td>A</td></tr></table>"
+    assert canonical.pages[0].blocks[1].cells[0].text == "A"
+    assert canonical.pages[0].blocks[1].cells[0].bbox is not None
+    assert (
+        canonical.pages[0].blocks[1].cells[0].attributes["coordinate_alignment_verified"] is False
+    )
     assert canonical.pages[0].blocks[0].bbox is not None
 
 
@@ -323,10 +348,26 @@ async def test_result_conversion_failure_has_stable_code(tmp_path: Path) -> None
     assert caught.value.code == "RESULT_SERIALIZATION_FAILED"
 
 
+async def test_optional_markdown_failure_preserves_json_result(tmp_path: Path) -> None:
+    settings = _settings()
+    runtime = PPStructureRuntime(
+        settings,
+        pipeline_factory=lambda **_: _Pipeline(results=[_MarkdownFailureResult()]),
+    )
+    adapter = PPStructureV3Adapter(_connector(), settings=settings, runtime=runtime)
+
+    result = await adapter.parse(_pdf(tmp_path), tmp_path, {})
+
+    assert result.raw_data["content"]["pages"][0]["raw"]["res"]["width"] == 100
+    assert result.raw_data["warnings"] == ["page 1: Markdown result was unavailable (KeyError)"]
+
+
 def test_json_safe_handles_non_standard_values(tmp_path: Path) -> None:
     converted = json_safe(
         {
             "array": _Array(),
+            "input_img": _Array(),
+            "nested": _NestedJson(),
             "enum": _Value.READY,
             "path": tmp_path,
             "nan": float("nan"),
@@ -336,11 +377,61 @@ def test_json_safe_handles_non_standard_values(tmp_path: Path) -> None:
 
     assert converted == {
         "array": [[1.0, 2.0], [3.0, 4.0]],
+        "input_img": {
+            "omitted": True,
+            "reason": "intermediate_raster_payload_not_embedded_in_json",
+            "python_type": "_Array",
+        },
+        "nested": {"block_label": "table", "block_content": "kept"},
         "enum": "ready",
         "path": str(tmp_path),
         "nan": None,
         "bytes": "한글",
     }
+
+
+def test_normalizer_preserves_string_serialized_paddle_blocks() -> None:
+    raw = {
+        "content": {
+            "markdown": "",
+            "pages": [
+                {
+                    "page_number": 1,
+                    "markdown": "",
+                    "raw": {
+                        "page_index": 0,
+                        "width": 100,
+                        "height": 200,
+                        "parsing_res_list": [
+                            "#################\nindex:\t3\nlabel:\ttable\n"
+                            "region_label:\ttable\nbbox:\t[1, 2, 90, 100]\n"
+                            "content:\tA B\n#################"
+                        ],
+                        "table_res_list": [
+                            {
+                                "pred_html": "<table><tr><td>A</td><td>B</td></tr></table>",
+                                "cell_box_list": [[1, 2, 10, 10], [11, 2, 20, 10]],
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+    }
+    canonical = normalize_paddle_response(
+        raw,
+        document_id="d",
+        run_id="r",
+        parser_name="pp_structure_v3",
+        parser_version="3.7.0",
+        parser_config={},
+    )
+
+    block = canonical.pages[0].blocks[0]
+    assert block.type == "table"
+    assert block.text == "A B"
+    assert [cell.text for cell in block.cells] == ["A", "B"]
+    assert block.attributes["serialized_source"] == "paddle_parsing_result_text"
 
 
 def test_invalid_device_configuration_is_rejected() -> None:

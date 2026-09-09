@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "spec_id": "short-planner-calculator-development-diagnostic-v1.5",
+  "status": "FROZEN_DEVELOPMENT_DIAGNOSTIC",
+  "frozen_before_live_run": true,
+  "parent_spec_id": "open-source-parser-calculator-development-diagnostic-v1.4",
+  "change_reason": "v1.4 preserved 17 calculator planner failures caused by the 8192-token input context being filled (prompt_eval_count 8191 and one output token), plus two syntactically generated plans with nonexistent numeric output references. v1.5 changes only the planner/answer contract: all existing Docling output, source pages, local model, generation temperature, arithmetic implementation, and repair definitions remain fixed.",
+  "scope": {
+    "role": "oracle_page_development_diagnostic_only",
+    "documents": ["AMD_2022_10K", "AMCOR_2023_10K"],
+    "questions": ["financebench_id_00222", "financebench_id_00684"],
+    "retrieval": "excluded; existing Docling canonical output for each frozen page is reused",
+    "parser_execution": "none in v1.5; no parser installation, model download, or reparsing",
+    "claim_boundary": "planner contract and live source-to-operation-to-answer feasibility only; not independent evaluation, RAG performance, parser ranking, policy superiority, or paper-level validation",
+    "prohibited": ["Synap runtime dependency", "parser reinstall or rerun", "Pfizer/PepsiCo/AES inspection", "prompt adaptation after outputs", "automatic retries", "policy comparison"]
+  },
+  "fixed_inputs": {
+    "docling_run": "research/work/open-source-parser-v1_4-docling-run-007",
+    "docling_manifest_sha256": "6050909611f454a7b5ce8c3f73ecf625bbd431477f384c32bda16d4d377816cb",
+    "source_pages": [
+      {"question_id": "financebench_id_00222", "document_id": "AMD_2022_10K", "page": 56, "pdf_sha256": "a3bd74088fae0ad4aa03d04998a1f4c64fd0b3c693841601b0ac49b46cf5c1f4"},
+      {"question_id": "financebench_id_00684", "document_id": "AMCOR_2023_10K", "page": 50, "pdf_sha256": "84d7a0291a12f4e68352750dccda3754c78eefdf06e0b5462046357a1ed53332"}
+    ],
+    "candidate_rule": "enumerate every numeric span in the current Docling page; do not filter or rank by reference answer, repair target, question ID, document ID, or post-repair effect",
+    "candidate_reduction": "none",
+    "state_isolation": "re-extract source values independently from each current state; no clean value, gold answer, repair label, or expected effect enters planner or calculator input"
+  },
+  "short_contract": {
+    "pipeline_version": "grounded-calculator-qa-v1_5",
+    "source_mapping": "program assigns stable extraction-order IDs s0..sN and preserves each complete original source record, including original ID and bbox, outside the model prompt",
+    "planner_view": ["short source ID", "current observed value", "parser row label", "parser header-derived period", "unit when observed or generally derived", "local cell/span context"],
+    "planner_omits": ["bbox", "coordinate metadata", "long original source IDs", "document ID", "question ID", "gold", "repair state and label", "metric-definition repetition in output"],
+    "planner_output": {"metric_id": "one generic catalog ID", "inputs": "1..8 role/source pairs", "steps": "1..6 allowed operations with 1..4 refs", "outputs": "1..4 result refs"},
+    "result_ids": "program assigns r0..r5 by step position; a step may reference selected s IDs and only earlier r IDs",
+    "validation": "schema, exact keys, bounds, current source existence, role and operation allowlists, topological references, operation arity, zero division, output existence, answer citations, and declared result use fail closed",
+    "semantic_rule": "format/reference/arithmetic success is not a correct plan; source audit separately judges metric, value, period, unit, conclusion, explanation, and evidence",
+    "token_rule": "before any live call, conservatively estimate prompt+schema as ceil(characters/3), reserve 400 planner output tokens and 512 safety tokens inside num_ctx=8192, and verify a maximum-bound plan fits the 400-token output budget; this is an estimate, while actual Ollama token counts are recorded"
+  },
+  "execution_sequence": [
+    {"order": 1, "request": "AMD quick ratio clean", "calls": 2, "gate": "planner, arithmetic, and answerer complete"},
+    {"order": 2, "request": "AMCOR gross margin clean", "calls": 2, "gate": "run only after AMD pipeline completion"},
+    {"order": 3, "request": "AMD five repair states", "calls": 10, "gate": "run only after a recorded source audit passes AMD clean metric, values, period, unit, calculation, and evidence"}
+  ],
+  "repair_diagnostic": {
+    "question_id": "financebench_id_00222",
+    "states": ["damaged_baseline", "damaged_no_op_fresh", "A_only", "B_only", "A_plus_B"],
+    "A": "corrupt only the matched 2022 Cash and cash equivalents value 4,835 to 835; restore only in A states",
+    "B": "corrupt only the matched 2022 Accounts receivable, net value 4,126 to 126; restore only in B states",
+    "alternate_route": "retain total current assets, inventory, prepaid, duplicate values, and every other source",
+    "freshness": "every state makes a fresh planner call and, only after a valid arithmetic plan, a fresh answerer call; no cached no-op response"
+  },
+  "live_call_budget": {
+    "normal_path": {"requests": 7, "planner": 7, "answerer": 7, "total": 14},
+    "hard_max_including_failures": 16,
+    "retries": 0,
+    "adaptive_prompt_variants": 0,
+    "stop_rules": ["stop after AMD clean if planner-to-answer does not complete", "do not run repair states without the separate AMD semantic source-audit gate"]
+  },
+  "evaluation": {
+    "request_denominator": "all requests actually admitted by the frozen gates, including failed and empty requests",
+    "pipeline_dimensions": ["planner call", "format validation", "reference validation", "arithmetic execution", "answerer call", "answer contract validation"],
+    "semantic_dimensions": ["metric selection", "value selection", "period and unit", "arithmetic", "conclusion", "explanation", "evidence", "answer use of program result"],
+    "reporting": ["planner/calculator/answerer completions over requested", "overall correct over requested", "correct among completed with its denominator", "all failures and repair states"],
+    "v1_4_interpretation_preserved": "v1.4 whole-request success was 0/7 for each calculator condition and no completed calculator answer existed, so accuracy among completed calculator responses was not measurable rather than zero"
+  },
+  "preservation": {
+    "raw": "append-only ignored research/work paths contain input blocks, complete source registries and short-ID maps, prompts, schemas, raw model responses/failures, token use, calculations, model inventory, manifests, and checksums",
+    "backup": "the persistent project path is primary storage; independent physical backup remains unverified"
+  }
+}

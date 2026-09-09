@@ -29,6 +29,7 @@ from research.pilot import CONDITIONS, SAFE_BLOCK_FIELDS, digest, runner_payload
 SYNTHESIS_PROMPT_VERSION = "loss-controlled-synthesis-v1"
 PASSTHROUGH_VERSION = "deterministic-block-passthrough-v1"
 QA_PROMPT_VERSION = "grounded-qa-json-v1"
+QUANTITATIVE_QA_PROMPT_VERSION = "grounded-qa-quantitative-json-v2"
 TOKEN_PATTERN = re.compile(r"[0-9A-Za-z]+|[가-힣]+")
 SOURCE_PATTERN = re.compile(r"\[source:([^\]\n]+)\]")
 ALLOWED_PAYLOAD_KEYS = {"schema_version", "repeat_id", "blocks", "questions"}
@@ -49,6 +50,31 @@ QA_RESPONSE_SCHEMA = {
     "additionalProperties": False,
 }
 
+QUANTITATIVE_QA_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "conclusion": {"type": "string"},
+        "quantitative_explanation": {"type": "string"},
+        "calculations": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "evidence_chunk_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "uniqueItems": True,
+        },
+    },
+    "required": [
+        "conclusion",
+        "quantitative_explanation",
+        "calculations",
+        "evidence_chunk_ids",
+    ],
+    "additionalProperties": False,
+}
+SUPPORTED_QA_OUTPUT_CONTRACTS = {"concise_v1", "quantitative_v2"}
+
 SYNTHESIS_INSTRUCTIONS = """You are producing a loss-controlled intermediate representation.
 Preserve every factual statement, number, unit, date, table row, sign, and qualifier from the
 source blocks. Do not infer answers and do not omit facts because they seem unimportant. Keep
@@ -61,14 +87,39 @@ object with keys answer and evidence_chunk_ids. evidence_chunk_ids must contain 
 shown in the input. If the evidence is insufficient, say so in answer and return an empty list.
 Do not use outside knowledge. Preserve numeric signs, units, and calculation details."""
 
+QUANTITATIVE_QA_INSTRUCTIONS = """Answer the question using only the retrieved chunks. Return
+exactly one JSON object with keys conclusion, quantitative_explanation, calculations, and
+evidence_chunk_ids. State a direct conclusion. For a quantitative or comparative question,
+quantitative_explanation must state the material values used with their periods, signs, and units;
+calculations must show the formula or comparison and substituted values needed to support the
+conclusion. evidence_chunk_ids must contain only chunk IDs shown in the input. If the evidence is
+insufficient, identify what is missing, do not invent a value, and return an empty evidence list
+unless a cited chunk directly supports that insufficiency assessment. Do not use outside
+knowledge."""
 
-def _qa_response_schema(input_text: str) -> dict[str, Any]:
+
+def _qa_contract(contract: str) -> tuple[str, str, dict[str, Any]]:
+    if contract == "concise_v1":
+        return QA_PROMPT_VERSION, QA_INSTRUCTIONS, QA_RESPONSE_SCHEMA
+    if contract == "quantitative_v2":
+        return (
+            QUANTITATIVE_QA_PROMPT_VERSION,
+            QUANTITATIVE_QA_INSTRUCTIONS,
+            QUANTITATIVE_QA_RESPONSE_SCHEMA,
+        )
+    raise ValueError(f"Unsupported qa_output_contract: {contract}")
+
+
+def _qa_response_schema(
+    input_text: str, contract: str = "concise_v1"
+) -> dict[str, Any]:
+    _, _, base_schema = _qa_contract(contract)
     schema = {
-        **QA_RESPONSE_SCHEMA,
+        **base_schema,
         "properties": {
-            **QA_RESPONSE_SCHEMA["properties"],
+            **base_schema["properties"],
             "evidence_chunk_ids": {
-                **QA_RESPONSE_SCHEMA["properties"]["evidence_chunk_ids"],
+                **base_schema["properties"]["evidence_chunk_ids"],
                 "items": {"type": "string"},
             },
         },
@@ -106,6 +157,7 @@ class RunnerConfig:
     retrieval_top_k: int = 6
     synthesis_max_output_tokens: int = 12_000
     qa_max_output_tokens: int = 1_200
+    qa_output_contract: str = "concise_v1"
     reasoning_effort: str | None = None
     verbosity: str | None = None
     temperature: float | None = None
@@ -132,6 +184,7 @@ class RunnerConfig:
             "RESEARCH_LLM_REASONING_EFFORT": "reasoning_effort",
             "RESEARCH_LLM_VERBOSITY": "verbosity",
             "RESEARCH_SYNTHESIS_MODE": "synthesis_mode",
+            "RESEARCH_QA_OUTPUT_CONTRACT": "qa_output_contract",
             "RESEARCH_OLLAMA_KEEP_ALIVE": "ollama_keep_alive",
         }
         for env_name, field in env_map.items():
@@ -189,6 +242,8 @@ class RunnerConfig:
             raise ValueError("Unsupported verbosity")
         if self.synthesis_mode not in {"model", "passthrough"}:
             raise ValueError("synthesis_mode must be model or passthrough")
+        if self.qa_output_contract not in SUPPORTED_QA_OUTPUT_CONTRACTS:
+            raise ValueError("qa_output_contract must be concise_v1 or quantitative_v2")
         positive = (
             self.timeout_seconds,
             self.synthesis_batch_chars,
@@ -350,7 +405,9 @@ class OpenAIResponsesAdapter:
                 "type": "json_schema",
                 "name": "grounded_answer",
                 "strict": True,
-                "schema": _qa_response_schema(input_text),
+                "schema": _qa_response_schema(
+                    input_text, self.config.qa_output_contract
+                ),
             }
         if text_config:
             parameters["text"] = text_config
@@ -421,6 +478,7 @@ class OllamaGenerateAdapter:
     ) -> None:
         self.config = config
         self.transport = transport or self._post
+        self.last_raw_response: dict[str, Any] | None = None
         if transport is None:
             runtime_metadata = self._discover_runtime()
         self.provider_runtime = runtime_metadata or {"transport": "injected"}
@@ -481,6 +539,28 @@ class OllamaGenerateAdapter:
         input_text: str,
         max_output_tokens: int,
     ) -> Generation:
+        response_schema = (
+            _qa_response_schema(input_text, self.config.qa_output_contract)
+            if stage == "qa"
+            else None
+        )
+        return self.generate_with_schema(
+            stage=stage,
+            instructions=instructions,
+            input_text=input_text,
+            max_output_tokens=max_output_tokens,
+            response_schema=response_schema,
+        )
+
+    def generate_with_schema(
+        self,
+        *,
+        stage: str,
+        instructions: str,
+        input_text: str,
+        max_output_tokens: int,
+        response_schema: dict[str, Any] | None,
+    ) -> Generation:
         options: dict[str, Any] = {"num_predict": max_output_tokens}
         if self.config.ollama_num_ctx is not None:
             options["num_ctx"] = self.config.ollama_num_ctx
@@ -497,11 +577,12 @@ class OllamaGenerateAdapter:
         }
         if self.config.ollama_keep_alive is not None:
             payload["keep_alive"] = self.config.ollama_keep_alive
-        if stage == "qa":
-            payload["format"] = _qa_response_schema(input_text)
+        if response_schema is not None:
+            payload["format"] = response_schema
 
         response: dict[str, Any] | None = None
         last_error: Exception | None = None
+        self.last_raw_response = None
         for _ in range(self.config.max_retries + 1):
             try:
                 response = self.transport(
@@ -509,6 +590,7 @@ class OllamaGenerateAdapter:
                     payload,
                     self.config.timeout_seconds,
                 )
+                self.last_raw_response = response
                 break
             except Exception as error:
                 last_error = error
@@ -715,7 +797,9 @@ def bm25_search(
     return scored[: min(top_k, len(scored))]
 
 
-def _parse_qa(text: str, valid_chunk_ids: set[str]) -> tuple[str, list[str]]:
+def _parse_qa(
+    text: str, valid_chunk_ids: set[str], contract: str = "concise_v1"
+) -> tuple[str, list[str], dict[str, Any]]:
     cleaned = text.strip()
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.IGNORECASE)
@@ -723,12 +807,40 @@ def _parse_qa(text: str, valid_chunk_ids: set[str]) -> tuple[str, list[str]]:
         value = json.loads(cleaned)
     except json.JSONDecodeError as error:
         raise PipelineError("QA response was not one valid JSON object") from error
-    if not isinstance(value, dict) or set(value) != {"answer", "evidence_chunk_ids"}:
+    _, _, schema = _qa_contract(contract)
+    required = set(schema["required"])
+    if not isinstance(value, dict) or set(value) != required:
         raise PipelineError(
-            "QA response must contain only answer and evidence_chunk_ids"
+            f"QA response must contain only {', '.join(sorted(required))}"
         )
-    if not isinstance(value["answer"], str) or not value["answer"].strip():
-        raise PipelineError("QA answer is missing")
+    if contract == "concise_v1":
+        if not isinstance(value["answer"], str) or not value["answer"].strip():
+            raise PipelineError("QA answer is missing")
+        answer = value["answer"].strip()
+    else:
+        if not all(
+            isinstance(value[key], str)
+            for key in ("conclusion", "quantitative_explanation")
+        ):
+            raise PipelineError(
+                "Quantitative QA conclusion or explanation must be a string"
+            )
+        calculations = value["calculations"]
+        if not isinstance(calculations, list) or not all(
+            isinstance(item, str) for item in calculations
+        ):
+            raise PipelineError("Quantitative QA calculations must be a string array")
+        parts = [
+            value["conclusion"].strip(),
+            value["quantitative_explanation"].strip(),
+            *[item.strip() for item in calculations],
+        ]
+        # The provider schema requires strings but cannot guarantee nonempty content. Preserve
+        # blank required fields in structured_output so the evaluator can score them as missing;
+        # aborting here would discard the model response and bias failure accounting.
+        answer = "\n".join(part for part in parts if part)
+        if not answer:
+            answer = "[MODEL_RETURNED_NO_QUANTITATIVE_CONTENT]"
     evidence = value["evidence_chunk_ids"]
     if not isinstance(evidence, list) or not all(
         isinstance(item, str) for item in evidence
@@ -736,7 +848,7 @@ def _parse_qa(text: str, valid_chunk_ids: set[str]) -> tuple[str, list[str]]:
         raise PipelineError("QA evidence_chunk_ids must be a string array")
     if set(evidence) - valid_chunk_ids:
         raise PipelineError("QA cited unavailable chunks")
-    return value["answer"], list(dict.fromkeys(evidence))
+    return answer, list(dict.fromkeys(evidence)), value
 
 
 def _usage_total(generations: list[Generation]) -> dict[str, int]:
@@ -790,10 +902,23 @@ def _generator_for(config: RunnerConfig) -> Generator:
 
 
 def run_pipeline(
-    payload: dict[str, Any], config: RunnerConfig, generator: Generator | None = None
+    payload: dict[str, Any],
+    config: RunnerConfig,
+    generator: Generator | None = None,
+    *,
+    forced_evidence_block_ids: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     config.validate()
     _validate_payload(payload)
+    available_block_ids = {block["block_id"] for block in payload["blocks"]}
+    if forced_evidence_block_ids is not None:
+        if not forced_evidence_block_ids:
+            raise ValueError("Forced evidence must name at least one source block")
+        unknown = set(forced_evidence_block_ids) - available_block_ids
+        if unknown:
+            raise ValueError(
+                f"Forced evidence contains unknown block IDs: {sorted(unknown)}"
+            )
     if not config.model:
         raise ValueError("Set model in config or RESEARCH_LLM_MODEL")
     batches = synthesis_batches(payload["blocks"], config.synthesis_batch_chars)
@@ -806,6 +931,7 @@ def run_pipeline(
         )
     if generator is None:
         generator = _generator_for(config)
+    qa_prompt_version, qa_instructions, _ = _qa_contract(config.qa_output_contract)
     execution_id = str(uuid4())
     started_at = datetime.now(UTC).isoformat()
     trace: list[dict[str, Any]] = []
@@ -946,7 +1072,21 @@ def run_pipeline(
 
     answers = []
     for question in payload["questions"]:
-        retrieved = bm25_search(question["question"], chunks, config.retrieval_top_k)
+        if forced_evidence_block_ids is None:
+            retrieved = bm25_search(
+                question["question"], chunks, config.retrieval_top_k
+            )
+            retrieval_mode = "bm25_top_k"
+        else:
+            forced = set(forced_evidence_block_ids)
+            retrieved = [
+                {**chunk, "score": None}
+                for chunk in chunks
+                if forced & set(chunk["source_block_ids"])
+            ]
+            retrieval_mode = "forced_source_blocks_evaluation_diagnostic"
+            if not retrieved:
+                raise PipelineError("Forced evidence blocks produced no chunks")
         retrieval_output = [
             {
                 key: row[key]
@@ -965,6 +1105,7 @@ def run_pipeline(
             {
                 "stage": "retrieval",
                 "question_id": question["question_id"],
+                "retrieval_mode": retrieval_mode,
                 "input": {
                     "query": question["question"],
                     "chunk_ids": [chunk["chunk_id"] for chunk in chunks],
@@ -978,13 +1119,15 @@ def run_pipeline(
         )
         generation = generator.generate(
             stage="qa",
-            instructions=QA_INSTRUCTIONS,
+            instructions=qa_instructions,
             input_text=qa_input,
             max_output_tokens=config.qa_max_output_tokens,
         )
         generations.append(generation)
-        answer, evidence_chunk_ids = _parse_qa(
-            generation.text, {row["chunk_id"] for row in retrieved}
+        answer, evidence_chunk_ids, structured_output = _parse_qa(
+            generation.text,
+            {row["chunk_id"] for row in retrieved},
+            config.qa_output_contract,
         )
         by_id = {row["chunk_id"]: row for row in retrieved}
         evidence_block_ids = list(
@@ -1000,6 +1143,25 @@ def run_pipeline(
                 "answer": answer,
                 "evidence_block_ids": evidence_block_ids,
                 "evidence_chunk_ids": evidence_chunk_ids,
+                "qa_output_contract": config.qa_output_contract,
+                "structured_output": structured_output,
+                "qa_contract_violations": (
+                    [
+                        field
+                        for field in ("conclusion", "quantitative_explanation")
+                        if not structured_output.get(field, "").strip()
+                    ]
+                    + (
+                        ["calculations"]
+                        if not any(
+                            item.strip()
+                            for item in structured_output.get("calculations", [])
+                        )
+                        else []
+                    )
+                )
+                if config.qa_output_contract == "quantitative_v2"
+                else [],
             }
         )
         trace.append(
@@ -1013,6 +1175,9 @@ def run_pipeline(
                     "answer": answer,
                     "evidence_chunk_ids": evidence_chunk_ids,
                     "evidence_block_ids": evidence_block_ids,
+                    "qa_output_contract": config.qa_output_contract,
+                    "structured_output": structured_output,
+                    "qa_contract_violations": answers[-1]["qa_contract_violations"],
                 },
                 "raw_output": generation.text,
                 "provider_response_id": generation.response_id,
@@ -1038,7 +1203,7 @@ def run_pipeline(
                 if config.synthesis_mode == "model"
                 else PASSTHROUGH_VERSION
             ),
-            "qa": QA_PROMPT_VERSION,
+            "qa": qa_prompt_version,
         },
         "prompt_sha256": {
             "synthesis": (
@@ -1046,7 +1211,7 @@ def run_pipeline(
                 if config.synthesis_mode == "model"
                 else None
             ),
-            "qa": hashlib.sha256(QA_INSTRUCTIONS.encode()).hexdigest(),
+            "qa": hashlib.sha256(qa_instructions.encode()).hexdigest(),
         },
         "applied_generation_settings": {
             "store": False,
@@ -1056,6 +1221,7 @@ def run_pipeline(
             "temperature": config.temperature,
             "top_p": config.top_p,
             "qa_response_format": "strict_json_schema",
+            "qa_output_contract": config.qa_output_contract,
             "synthesis_max_output_tokens": config.synthesis_max_output_tokens,
             "qa_max_output_tokens": config.qa_max_output_tokens,
         },
@@ -1073,6 +1239,12 @@ def run_pipeline(
         "source_kinds": sorted(
             {block.get("source_kind", "unspecified") for block in payload["blocks"]}
         ),
+        "retrieval_mode": (
+            "bm25_top_k"
+            if forced_evidence_block_ids is None
+            else "forced_source_blocks_evaluation_diagnostic"
+        ),
+        "forced_evidence_block_ids": list(forced_evidence_block_ids or ()),
         "synthesis_count": len(synthesized),
         "chunk_count": len(chunks),
     }
@@ -1141,6 +1313,7 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="action", required=True)
     run = subparsers.add_parser("run")
     run.add_argument("--config", type=Path)
+    run.add_argument("--force-evidence-block-id", action="append", default=[])
     estimate = subparsers.add_parser("preflight")
     estimate.add_argument("--case", type=Path, required=True)
     estimate.add_argument("--config", type=Path)
@@ -1149,7 +1322,15 @@ def main() -> None:
     args = parser.parse_args()
     config = RunnerConfig.load(args.config)
     if args.action == "run":
-        response = run_pipeline(_read_stdin_payload(), config)
+        response = run_pipeline(
+            _read_stdin_payload(),
+            config,
+            forced_evidence_block_ids=(
+                tuple(args.force_evidence_block_id)
+                if args.force_evidence_block_id
+                else None
+            ),
+        )
         print(json.dumps(response, ensure_ascii=False))
         return
     case = json.loads(args.case.read_text())

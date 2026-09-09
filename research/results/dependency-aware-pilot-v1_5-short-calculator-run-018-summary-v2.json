@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "status": "POSTRUN_SOURCE_AUDITED_DEVELOPMENT_ANALYSIS",
+  "scope": "frozen oracle-source-page development diagnostic; not independent evaluation or RAG",
+  "run_manifest_sha256": "31a40825996fe23674fbb10473c9004163417d13ec84317b984d3735c26547a0",
+  "run_checksums_sha256": "2c22a667ea54103772652f491b6f832ac91d4e6908384003bb67a11c1a70758d",
+  "source_audit_sha256": "98f8160aedd411c3186ff8d796b2f330820d7702d0d3b03ad3c37bc4af8fb618",
+  "git_commit_at_run": "73aeeec12b4172aee7609b116a336cc18418ce45",
+  "request_counts": {
+    "requested": 1,
+    "planner_completed": 1,
+    "calculator_completed": 0,
+    "answerer_completed": 0,
+    "pipeline_completed": 0
+  },
+  "accuracy": {
+    "whole_request": {
+      "correct": 0,
+      "denominator": 1
+    },
+    "completed_only": {
+      "correct": null,
+      "denominator": 0,
+      "status": "NOT_MEASURABLE_NO_COMPLETED_RESPONSES"
+    }
+  },
+  "stage_status_counts": {
+    "planner_call": {
+      "COMPLETED": 1
+    },
+    "format_validation": {
+      "PASSED": 1
+    },
+    "reference_validation": {
+      "FAILED": 1
+    },
+    "arithmetic_execution": {
+      "NOT_STARTED": 1
+    },
+    "answerer_call": {
+      "NOT_STARTED": 1
+    },
+    "answer_contract_validation": {
+      "NOT_STARTED": 1
+    }
+  },
+  "failure_dimensions": {
+    "metric_selection_error": 0,
+    "value_selection_error": 1,
+    "period_or_unit_error": 1,
+    "arithmetic_error": 0,
+    "arithmetic_not_executed": 1,
+    "answer_error_or_missing": 1,
+    "evidence_error": 1
+  },
+  "diagnosis": {
+    "v1_4_preserved": {
+      "whole_request_success": "0/7 per calculator condition",
+      "completed_calculator_accuracy": "not measurable because denominator was 0"
+    },
+    "v1_5": {
+      "input_context_overflow": false,
+      "output_token_limit": false,
+      "repetitive_unnecessary_output_observed": false,
+      "nonexistent_or_undeclared_reference": true,
+      "details": "The short planner finished in 147 output tokens, but steps referenced current sources not listed in its inputs. Even if accepted implicitly, the planned expression mixed periods and was not the selected quick-ratio definition."
+    }
+  },
+  "call_usage": {
+    "actual_calls": 1,
+    "input_tokens": 3803,
+    "output_tokens": 147,
+    "hard_limit": 16,
+    "normal_path_limit": 14
+  },
+  "calls": [
+    {
+      "call_index": 1,
+      "stage": "calculator_short_plan",
+      "status": "completed",
+      "input_characters": 12514,
+      "input_tokens": 3803,
+      "output_tokens": 147,
+      "max_output_tokens": 400,
+      "output_limit_reached": false,
+      "input_context_limit_reached": false,
+      "raw_output_characters": 363,
+      "raw_output": "{\n\"metric_id\": \"quick_ratio_liquid_components_v1\",\n\"inputs\": [\n{\n\"role\": \"direct_value\",\n\"source\": \"s4\"\n},\n{\n\"role\": \"direct_value\",\n\"source\": \"s5\"\n}\n],\n\"steps\": [\n{\n\"op\": \"subtract\",\n\"args\": [\"s10\", \"s11\"]\n},\n{\n\"op\": \"subtract\",\n\"args\": [\"s14\", \"s15\"]\n},\n{\n\"op\": \"add\",\n\"args\": [\"r0\", \"r1\"]\n},\n{\n\"op\": \"divide\",\n\"args\": [\"r2\", \"s6\"]\n}\n],\n\"outputs\": [\n\"r3\"\n]\n}\n\n ",
+      "failure_message": null
+    }
+  ],
+  "source_audit": {
+    "schema_version": 1,
+    "status": "SOURCE_AUDITED_FAIL",
+    "scope": "post-run development source audit; never supplied to planner, calculator, or answerer",
+    "question_id": "financebench_id_00222",
+    "clean_run_manifest_sha256": "31a40825996fe23674fbb10473c9004163417d13ec84317b984d3735c26547a0",
+    "source_pdf_sha256": "a3bd74088fae0ad4aa03d04998a1f4c64fd0b3c693841601b0ac49b46cf5c1f4",
+    "source_page": 56,
+    "audited_reference_path": {
+      "metric": "quick_ratio_liquid_components_v1",
+      "period": "December 31, 2022",
+      "unit": "millions",
+      "sources": [
+        {
+          "short_id": "s4",
+          "row": "Cash and cash equivalents",
+          "value": "4835"
+        },
+        {
+          "short_id": "s6",
+          "row": "Short-term investments",
+          "value": "1020"
+        },
+        {
+          "short_id": "s8",
+          "row": "Accounts receivable, net",
+          "value": "4126"
+        },
+        {
+          "short_id": "s42",
+          "row": "Total current liabilities",
+          "value": "6369"
+        }
+      ],
+      "calculation": "(4835 + 1020 + 4126) / 6369 = 1.567436018213220285759145863",
+      "threshold_note": "greater than one is the frozen benchmark convention, not a filing claim"
+    },
+    "observed_planner_path": {
+      "metric_id": "quick_ratio_liquid_components_v1",
+      "declared_inputs": [
+        "s4",
+        "s5"
+      ],
+      "undeclared_step_sources": [
+        "s10",
+        "s11",
+        "s14",
+        "s15",
+        "s6"
+      ],
+      "planned_expression_if_undeclared_sources_were_permitted": "((3771 - 1955) + (1265 - 312)) / 1020 = 2.714705882352941176470588235",
+      "interpretation": "the plan mixes 2022 and 2021 inventory/prepaid values, divides by short-term investments rather than current liabilities, omits accounts receivable, and is not a quick-ratio calculation even though the metric ID is syntactically correct"
+    },
+    "dimensions": {
+      "metric_selection": "PASS",
+      "value_selection": "FAIL",
+      "period_selection": "FAIL",
+      "unit_selection": "PASS",
+      "arithmetic": "NOT_EXECUTED_REFERENCE_FAILURE",
+      "conclusion": "NOT_EXECUTED",
+      "evidence": "FAIL",
+      "answer_uses_program_result": "NOT_EXECUTED"
+    },
+    "overall_source_correct": false,
+    "repair_gate": "CLOSED",
+    "repair_gate_reason": "AMD clean did not complete planner-to-calculator-to-answerer and the generated plan also failed the source-semantic audit; the frozen protocol therefore prohibits AMCOR and repair-state calls after this failure.",
+    "reviewer_authorship": "post-run researcher-assistant source-audit record; not QA model output",
+    "reviewed_at": "2026-09-09T08:46:00+00:00"
+  },
+  "rows": [
+    {
+      "execution_id": "1dbaa523-b073-44b9-94da-29778ed42c5c",
+      "condition": "amd_clean",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "evidence_route": "frozen_oracle_docling_page",
+      "input_sha256": "9dc0b0bf7f644d2ac2b44fc1ae2a617b03eff1d0789cf2ec9c259e8efe6de2bf",
+      "pipeline": "short_calculator_v1_5",
+      "candidate_count": 77,
+      "candidate_reduction": "none",
+      "status": "failed",
+      "failure_type": "ShortCalculatorError",
+      "failure_message": "Short planner step has an invalid operation, reference, or forward/cyclic reference",
+      "stage_status": {
+        "planner_call": "COMPLETED",
+        "format_validation": "PASSED",
+        "reference_validation": "FAILED",
+        "arithmetic_execution": "NOT_STARTED",
+        "answerer_call": "NOT_STARTED",
+        "answer_contract_validation": "NOT_STARTED"
+      },
+      "actual_call_count": 1
+    }
+  ],
+  "not_run_by_frozen_gate": [
+    "AMCOR gross-margin clean",
+    "AMD damaged baseline",
+    "AMD damaged no-op fresh rerun",
+    "AMD A-only repair",
+    "AMD B-only repair",
+    "AMD A+B repair"
+  ]
+}

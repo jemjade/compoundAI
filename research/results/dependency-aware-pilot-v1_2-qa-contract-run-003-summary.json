@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "spec_id": "qa-evidence-output-contract-development-diagnostic-v1.2",
+  "run_id": "8fdc916c-0ff2-46c9-afe6-b9752446054d",
+  "scope": "controlled one-document development diagnostic only",
+  "live_code_commit": "f770db02f56e21dcaedd11ae897bb4a7f978b463",
+  "final_adjudication_code_commit": "23d349b",
+  "raw_results_path": "/Users/suhyunpark/suhyun_dev/compoundAI/research/work/preserved-dependency-aware-pilot-v1_2-qa-contract-run-003",
+  "preservation_manifest_sha256": "db336316da7524dc101543868f9a78934b67238c085635adbf0f345bf6ff89ff",
+  "raw_file_count": 20,
+  "raw_total_bytes": 18200333,
+  "model": {
+    "provider": "local Ollama",
+    "tag": "llama3:latest",
+    "digest": "365c0bd3c000a25d28ddbf732fe1c6add414de7275464c4e4d1c3b5fcb5d8ad1",
+    "ollama_version": "0.30.6",
+    "parameter_size": "8.0B",
+    "quantization": "Q4_0",
+    "temperature": 0,
+    "context": 8192,
+    "synthesis": "passthrough"
+  },
+  "execution": {
+    "pipeline_executions": 6,
+    "model_calls": 12,
+    "unique_pipeline_execution_ids": 6,
+    "maximum_output_tokens_preflight": 7200,
+    "evidence_route": "forced full p55 oracle evidence"
+  },
+  "historical_v1_1_strict_score_preserved": {
+    "gross": {
+      "A_damaged_general": {"answer": false, "evidence": false, "overall": false},
+      "B_repaired_general": {"answer": false, "evidence": false, "overall": false},
+      "C_damaged_oracle_evidence": {"answer": false, "evidence": false, "overall": false},
+      "D_repaired_oracle_evidence": {"answer": false, "evidence": true, "overall": false}
+    },
+    "tax": {
+      "A_damaged_general": {"answer": false, "evidence": false, "overall": false},
+      "B_repaired_general": {"answer": false, "evidence": false, "overall": false},
+      "C_damaged_oracle_evidence": {"answer": false, "evidence": true, "overall": false},
+      "D_repaired_oracle_evidence": {"answer": false, "evidence": true, "overall": false}
+    }
+  },
+  "posthoc_v1_1_gross_v1_2_dimensions": {
+    "analysis_status": "POSTHOC_EXPLORATORY_REANALYSIS",
+    "A_damaged_general": ["MISSING", "NOT_APPLICABLE_NO_NUMBERS", "MISSING_OR_INCOMPLETE", "INSUFFICIENT"],
+    "B_repaired_general": ["MISSING", "NOT_APPLICABLE_NO_NUMBERS", "MISSING_OR_INCOMPLETE", "INSUFFICIENT"],
+    "C_damaged_oracle_evidence": ["MISSING", "NOT_APPLICABLE_NO_NUMBERS", "MISSING_OR_INCOMPLETE", "INSUFFICIENT"],
+    "D_repaired_oracle_evidence": ["CORRECT", "NOT_APPLICABLE_NO_NUMBERS", "MISSING_OR_INCOMPLETE", "SUFFICIENT"],
+    "dimension_order": ["conclusion_correctness", "stated_numeric_accuracy", "quantitative_explanation_completeness", "evidence_sufficiency"]
+  },
+  "v1_2_gross_outcomes": {
+    "flat_old_prompt_damaged": ["CORRECT", "NOT_APPLICABLE_NO_NUMBERS", "MISSING_OR_INCOMPLETE", "INSUFFICIENT", false],
+    "flat_old_prompt_repaired": ["INCORRECT", "NOT_APPLICABLE_NO_NUMBERS", "MISSING_OR_INCOMPLETE", "SUFFICIENT", false],
+    "flat_quantitative_prompt_damaged": ["INCORRECT", "INCORRECT_NUMERIC_CLAIM", "MISSING_OR_INCOMPLETE", "INSUFFICIENT", false],
+    "flat_quantitative_prompt_repaired": ["CORRECT", "INCORRECT_NUMERIC_CLAIM", "MISSING_OR_INCOMPLETE", "SUFFICIENT", false],
+    "table_quantitative_prompt_damaged": ["CORRECT", "INCORRECT_NUMERIC_CLAIM", "MISSING_OR_INCOMPLETE", "INSUFFICIENT", false],
+    "table_quantitative_prompt_repaired": ["CORRECT", "INCORRECT_NUMERIC_CLAIM", "MISSING_OR_INCOMPLETE", "SUFFICIENT", false],
+    "dimension_order": ["conclusion_correctness", "stated_numeric_accuracy", "quantitative_explanation_completeness", "evidence_sufficiency", "unconditional_overall_correct"]
+  },
+  "tax_outcome": {
+    "old_prompt": "both source states returned insufficient evidence",
+    "quantitative_prompt": "all four runs produced calculations, but none matched the full signed FinanceBench pair or either filing-reported pair",
+    "unconditional_correctness": null,
+    "reason": "FinanceBench +0.62%/-14.76% conflicts with Boeing p24/p77 -0.6%/+14.8% or +14.7%"
+  },
+  "effects": {
+    "output_contract": "changed gross conclusions in both source states and exposed numeric errors, but produced zero complete, numeric-correct gross explanations",
+    "structured_table": "changed the damaged gross conclusion from incorrect to correct but still hallucinated repaired revenue and a wrong subtotal; changed no evaluated gross field in the repaired state",
+    "claim": "no setting achieved unconditional gross correctness and no tax result can be called unconditionally correct"
+  },
+  "intervention_validity": {
+    "gross_direction_survives_both_corruptions": true,
+    "A_affects_exact_margin": true,
+    "B_required_for_revenue_minus_cost_consistency": true,
+    "B_required_for_subtotal_divided_by_revenue_route": false,
+    "A_or_B_affects_tax": false,
+    "combination_effect_case": false
+  },
+  "policy_comparison_gate": "NOT_READY",
+  "most_important_next_work": "freeze independent cases where actual error candidates have non-gold distinguishing features, varied downstream dependency structures, and repairs that can change a frozen final metric"
+}

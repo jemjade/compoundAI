@@ -37,6 +37,15 @@ PADDLE_CONFIG_SCHEMA: dict[str, Any] = {
     "properties": {option: {"type": "boolean"} for option in sorted(PADDLE_OPTION_NAMES)},
     "additionalProperties": False,
 }
+_RASTER_PAYLOAD_KEYS = {
+    "input_img",
+    "output_img",
+    "preprocessed_img",
+    "rot_img",
+    "rotated_img",
+    "imgs_in_doc",
+    "table_cell_img",
+}
 
 
 def paddle_default_options(settings: Settings) -> dict[str, bool]:
@@ -144,7 +153,18 @@ def json_safe(value: Any, _seen: set[int] | None = None) -> Any:
     seen.add(value_id)
     try:
         if isinstance(value, dict):
-            return {str(key): json_safe(item, seen) for key, item in value.items()}
+            return {
+                str(key): (
+                    {
+                        "omitted": True,
+                        "reason": "intermediate_raster_payload_not_embedded_in_json",
+                        "python_type": type(item).__name__,
+                    }
+                    if str(key) in _RASTER_PAYLOAD_KEYS and item is not None
+                    else json_safe(item, seen)
+                )
+                for key, item in value.items()
+            }
         if isinstance(value, (list, tuple, set)):
             return [json_safe(item, seen) for item in value]
         if is_dataclass(value) and not isinstance(value, type):
@@ -155,6 +175,9 @@ def json_safe(value: Any, _seen: set[int] | None = None) -> Any:
             return json_safe(value.tolist(), seen)
         if hasattr(value, "item"):
             return json_safe(value.item(), seen)
+        result_json = getattr(value, "json", None)
+        if result_json is not None:
+            return json_safe(result_json() if callable(result_json) else result_json, seen)
         return str(value)
     finally:
         seen.discard(value_id)
@@ -360,7 +383,23 @@ class PPStructureRuntime:
                             "PARSING_FAILED",
                             "PaddleOCR rejected the requested model options.",
                         )
-                    markdown_info = _result_markdown(result)
+                    try:
+                        markdown_info = _result_markdown(result)
+                    except (
+                        AttributeError,
+                        KeyError,
+                        TypeError,
+                        ValueError,
+                        ModuleNotFoundError,
+                    ) as exc:
+                        # JSON is the research/source-of-truth artifact. Optional Markdown
+                        # construction can require document-export extras (for example python-docx)
+                        # and must not discard an otherwise usable parser result.
+                        warnings.append(
+                            f"page {index + 1}: Markdown result was unavailable "
+                            f"({type(exc).__name__})"
+                        )
+                        markdown_info = {}
                     markdown_infos.append(markdown_info)
                     page_markdown = _markdown_text(markdown_info)
                     safe_raw = json_safe(raw_result)
@@ -376,7 +415,13 @@ class PPStructureRuntime:
                     merged_markdown = pipeline.concatenate_markdown_pages(markdown_infos)
                     if not isinstance(merged_markdown, str):
                         raise TypeError
-                except (AttributeError, TypeError, ValueError):
+                except (
+                    AttributeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                    ModuleNotFoundError,
+                ):
                     warnings.append("PaddleOCR Markdown page merge fallback was used")
                     merged_markdown = "\n\n".join(
                         page["markdown"] for page in page_results if page["markdown"]

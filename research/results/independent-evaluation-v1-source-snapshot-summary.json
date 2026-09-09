@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "status": "SOURCE_SNAPSHOT_PREPARED_NO_MODEL_OR_POLICY_RESULTS",
+  "protocol_id": "dependency-aware-independent-controlled-evaluation-v1",
+  "protocol_git_commit": "93bfe3e",
+  "source_commit": "cc39aeb4afdf33909ee1412188bf89035950c2eb",
+  "snapshot_path": "research/work/independent-evaluation-v1-source-snapshot",
+  "prepared_question_count": 11,
+  "protocol_selected_question_count": 9,
+  "block_count": 903,
+  "inputs_sha256": "c43a0d7d8dd3121f45a762cdb216530dd5e3aaaa719bb366f488aacaaba348e2",
+  "documents": [
+    {
+      "document_id": "PFIZER_2021_10K",
+      "pdf_sha256": "ff3307d5f633c5dbe59a976f5ff5e086af04ba5a5135f2b6411c89538a22a665",
+      "page_count": 143
+    },
+    {
+      "document_id": "PEPSICO_2022_10K",
+      "pdf_sha256": "7d8a9f3374e429c58f101319e2da8a0e601a89859e1e4f6854163dd5f8ce6b47",
+      "page_count": 503
+    },
+    {
+      "document_id": "AES_2022_10K",
+      "pdf_sha256": "9c5de2227534c4d6bf3d805f635bad5d82eddf8e4183a85a3d1311b48b50291d",
+      "page_count": 257,
+      "empty_text_pages": [131, 188]
+    }
+  ],
+  "preservation": {
+    "file_count_excluding_preservation_manifest": 5,
+    "total_bytes_excluding_preservation_manifest": 3046168,
+    "preservation_manifest_sha256": "19b150edc081858c46bb4e7baa7a81cd99d97a7c4bbca5c6bb90051601cffb57",
+    "independent_physical_backup_verified": false
+  },
+  "not_completed": [
+    "visual and arithmetic audit of the nine frozen question/reference/evidence pairs",
+    "frozen injection and candidate manifests",
+    "dependency-structure restart-gate check",
+    "any model or policy performance execution"
+  ]
+}

@@ -1,5 +1,63 @@
 # 수정 효과를 측정하기 위한 첫 파일럿
 
+## Dependency-aware upstream pilot v1
+
+`research/specs/experiment_spec_v1.json` is the frozen contract for the first
+selection-policy wiring experiment. It is deliberately limited to controlled numeric text spans
+from one pypdf document. It does not implement or claim multimodal evaluation, natural parser
+errors, cross-stage allocation, an output-only baseline, multiple independent documents, or a
+human-interface evaluation.
+
+The policy implementation is split at an explicit leakage boundary:
+
+- `research/allocation.py` sees corrupted blocks plus independently executed baseline/no-op traces
+  and implements Random, Uncertainty, Individual impact, and Graph-aware selection.
+- `research/allocation_pilot.py` serializes those policy inputs and selections before joining the
+  selected spans to evaluation-only ideal repair labels and launching fresh downstream reruns.
+- Every candidate costs one verification unit, including normal candidates that produce no edit.
+  The unit is not human time.
+
+Preflight the frozen two-question local experiment before making model calls:
+
+```bash
+python3 -m research.allocation_pilot preflight \
+  --case research/work/boeing-case.json \
+  --spec research/specs/experiment_spec_v1.json \
+  --config research/configs/dependency_aware_pilot_llama3_v1.json \
+  --max-total-calls 26
+```
+
+The `run` command requires a clean tracked worktree so that the committed spec and code precede
+the live artifact. Outputs belong in the ignored, append-only `research/work/` directory. After a
+run, create a blind judgment template, apply the narrow deterministic pilot judge, and score it:
+
+```bash
+python3 -m research.allocation_pilot run \
+  --case research/work/boeing-case.json \
+  --spec research/specs/experiment_spec_v1.json \
+  --config research/configs/dependency_aware_pilot_llama3_v1.json \
+  --out research/work/dependency-aware-pilot-v1-run-001 \
+  --max-total-calls 26
+
+python3 -m research.allocation_pilot judge-template \
+  --run research/work/dependency-aware-pilot-v1-run-001 \
+  --gold research/work/financebench-pilot/evaluation/gold.jsonl \
+  --out research/work/dependency-aware-pilot-v1-run-001/judgments.template.jsonl
+
+python3 -m research.allocation_pilot auto-judge \
+  --template research/work/dependency-aware-pilot-v1-run-001/judgments.template.jsonl \
+  --out research/work/dependency-aware-pilot-v1-run-001/judgments.jsonl
+
+python3 -m research.allocation_pilot score \
+  --run research/work/dependency-aware-pilot-v1-run-001 \
+  --judgments research/work/dependency-aware-pilot-v1-run-001/judgments.jsonl \
+  --out research/work/dependency-aware-pilot-v1-run-001/summary.json
+```
+
+The deterministic judge requires all reference numbers and a gold evidence block citation. It is
+a strict plumbing evaluator, not a validated general FinanceBench judge; alternate evidence pages
+must be reviewed manually.
+
 **현재 완료:** 실제 공개 PDF·QA 준비 코드, 숫자 오류 주입 사례, 무수정/A/B/AB
 실행·기록·평가 절차, 로컬 Ollama 또는 OpenAI Responses API 합성·문자 청킹·BM25
 검색·근거 기반 QA 실행기.
@@ -8,6 +66,64 @@
 `research/canonical_adapter.py`는 backend `CanonicalDocument` 스냅샷을 연구 입력으로
 변환한다. 이 폴더 자체가 초록의 전체 시스템을 구현한 것은 아니다. 테스트 통과,
 데이터 준비 수치, 테스트용 가짜 응답을 논문의 복구 성능으로 사용하지 않는다.
+
+## 첫 실제 allocation 실행 결과
+
+동결된 v1 명세로 로컬 `llama3:latest`를 26회 호출한 run 001을 완료했다. 구현 연결은
+완료됐지만 BM25 top-k 후보군에 두 주입 오류가 있는 p55가 들어오지 않아 모든 정책이
+정상 후보만 검사했고, 복구·악화·순복구는 모두 0이었다. 이는 정책 우수성 결과가 아니라
+후보 recall 실패를 드러낸 exploratory wiring 결과다.
+
+- 상세 보고서: `research/reports/dependency-aware-pilot-v1-run-001.md`
+- 추적 가능한 요약: `research/results/dependency-aware-pilot-v1-run-001-summary.json`
+- 원시 산출물: `research/work/dependency-aware-pilot-v1-run-001/` (Git 제외)
+- 후속 변경안: `research/specs/experiment_spec_v1_1_change_proposal.md`
+
+동결된 v1은 소급 변경하지 않으며 run 001을 독립 최종 평가로 재사용하지 않는다.
+
+## v1.1 후보/근거 접근 진단
+
+run 001의 후보 누락과 downstream 근거 접근 실패를 분리하기 위해 v1.1 development
+diagnostic을 실행했다. 전체 문서의 숫자 span 6,777개를 열거해 A/B 후보 포함률은 2/2가
+됐지만, 95.23%가 기존 top-k trace 기준 reach 0이고 모든 후보가 점수 동점 그룹에
+속했다. A/B는 6,451개 정상 후보와 동일한 특징을 가져 어떤 scored policy도 선택하지
+못했다.
+
+일반 검색은 gross-margin 유효 근거를 찾지 못했다. 복구된 p55 전체를 강제로 제공한 D는
+방향만 맞히고 필수 수치·계산을 생략했으며 tax는 답하지 못했다. 문맥은 잘리지 않았지만
+pypdf의 flattened 표에서 gross-profit 행 라벨이 사라져 evidence representation과 QA
+reasoning을 아직 분리할 수 없다. 동결 stop rule에 따라 더 큰 정책 비교는 중단했다.
+
+- 명세: `research/specs/experiment_spec_v1_1.json`
+- 데이터 연결 감사: `research/reports/dependency-aware-pilot-v1_1-data-linkage.md`
+- 실행 보고서: `research/reports/dependency-aware-pilot-v1_1-diagnostic-run-002.md`
+- 추적 요약: `research/results/dependency-aware-pilot-v1_1-diagnostic-run-002-summary.json`
+- 원시 산출물: `research/work/preserved-dependency-aware-pilot-v1_1-diagnostic-run-002/`
+
+## v1.2 QA evidence/output contract 진단
+
+v1.1 D의 방향 정답과 수치 설명 누락을 분리하기 위해 결론 정확도, 실제로 명시한
+수치의 정확도, 필수 정량 설명의 완결성, 근거 충분성을 별도 판정한다. 수치를 전혀
+쓰지 않은 답변은 잘못된 수치가 아니라 `NOT_APPLICABLE_NO_NUMBERS`와 설명 누락으로
+기록한다. 모든 참조 숫자를 반복할 필요는 없고, 두 기간의 마진과 타당한 계산 근거를
+보인 동등 설명을 허용한다.
+
+로컬 llama3로 flat/old prompt, flat/quantitative prompt, human-verified table/quantitative
+prompt를 손상·A+B 상태에서 각각 실행했다. 명시적 계약은 수치 출력을 유도했지만 잘못된
+계산도 드러냈고, 표 표현까지 포함해 완결된 정답은 없었다. p55의 3,502/3,017 행은 PDF
+원문 자체에서 라벨이 비어 있음을 직접 확인했다. 표 직렬화는 oracle representation일
+뿐 자동 파서 구현이 아니다.
+
+- 명세: `research/specs/experiment_spec_v1_2.json`
+- 개입 타당성 감사: `research/reports/dependency-aware-pilot-v1_2-intervention-validity.md`
+- 실행 보고서: `research/reports/dependency-aware-pilot-v1_2-qa-contract-run-003.md`
+- 추적 요약: `research/results/dependency-aware-pilot-v1_2-qa-contract-run-003-summary.json`
+- 원시 산출물:
+  `research/work/preserved-dependency-aware-pilot-v1_2-qa-contract-run-003/`
+
+최종 판정은 v1.2.2다. 실행 후 발견한 negation/숫자 파싱 버그의 수정 이유와 이전 판정
+보존 정책은 `research/specs/experiment_spec_v1_2_evaluator_correction.md`에 기록했다.
+이 진단은 QA 계약 연결을 검증했을 뿐 정책 비교 준비 완료를 뜻하지 않는다.
 
 ## 지금 만들어진 자료
 
@@ -28,9 +144,12 @@
 
 ## 현재 다음 행동 한 가지
 
-**API 연결 정보와 호출 예산을 확인한 뒤 준비된 보잉 사례를 반복 1회 실행한다.**
+**독립 문서에서 오류 후보를 정상 후보와 구별할 비-gold 특징, 서로 다른 downstream
+의존 구조, 최종 지표를 바꾸는 수정이 함께 존재하는 사례군을 동결한다.**
 
-첫 성공 조건은 성능 향상이 아니라, 서로 다른 다섯 조건의 결과가 실제 호출로 기록되는 것이다. 외부 실행기가 제공되기 전까지 모델 결과표는 생성하지 않는다.
+Boeing 개발 결과를 계속 튜닝하고 독립 평가로 재명명하지 않는다. 같은 후보·정보·비용·
+예산 규칙에서 정책을 비교하며, Individual/Graph가 같은 집합을 고르거나 후보·검색이
+실패한 사례도 삭제하지 않는다.
 
 ## 1. 데이터 다시 준비하기
 
@@ -291,3 +410,162 @@ Canonical ID·좌표 보존을 검증한다. 테스트 안의 답변은 전부 �
 5. 그래프 영향 범위와 실제 복구를 비교할 연구 설계, 비용 가정, HCI 기여 및 선행연구 대조 완성.
 
 본 파일럿만으로 CHI 제출 준비나 채택 가능성을 주장하지 않는다. 지금 초록의 완료형 실험 주장은 실제 결과가 확보된 범위에 맞춰 다시 정리해야 한다.
+
+## v1.3 다문서 개발 실행 가능성 진단
+
+v1.3은 Boeing 프롬프트·모델 튜닝을 종료하고 AMCOR, Best Buy, AMD의 7개 개발 문항으로
+clean 일반 검색과 full-page oracle evidence를 분리한다. 동결 명세는
+`research/specs/experiment_spec_v1_3.json`, 실행기는 `research/development_v1_3.py`, 소스
+대조 판정기는 `research/evaluate_development_v1_3.py`다. PyMuPDF는 실제 두 번째 텍스트
+추출과 단어 좌표 관측에만 사용하며 VLM이나 자동 표 파서로 부르지 않는다.
+
+```bash
+uv run --with-requirements research/requirements.txt \
+  python -m research.development_v1_3 preflight \
+  --data research/work/financebench-development-v1_3 \
+  --spec research/specs/experiment_spec_v1_3.json \
+  --config research/configs/dependency_aware_pilot_llama3_development_v1_3.json \
+  --max-calls 18
+```
+
+완료된 개발 결과는
+`research/results/dependency-aware-pilot-v1_3-development-run-005-summary.json`과
+`research/reports/dependency-aware-pilot-v1_3-development-run-005.md`에 있다. 일반 검색과
+oracle 모두 완전 정답 2/7이었고 통제 AMD quick-ratio 수정은 완전 복구 0건이었다. 이는
+실행·실패 위치·특징 관측 경로를 확인한 결과이지 정책 우수성 결과가 아니다.
+
+독립 평가 문서/규칙은 `research/specs/independent_evaluation_protocol_v1.json`에 성능
+확인 전에 고정되어 있다. 소스 스냅샷까지만 준비됐으며 reference audit, injection
+manifest, dependency-structure gate를 통과하기 전에는 정책 성능 실행을 시작하지 않는다.
+
+## v1.4 오픈소스 parser와 계산 도구 개발 진단
+
+v1.4 연구 경로에는 Synap 서버·API 키·라이선스가 필요하지 않다. Docling 2.126.0을
+주 parser, PP-StructureV3(paddleocr 3.7.0, paddlepaddle 3.3.1)을 비교 parser로 고정했다.
+PyMuPDF와 pypdf는 텍스트 추출 기준이며 표 parser로 해석하지 않는다. 페이지 지정은
+검색을 제외한 oracle-source-page 개발 진단이고 전체 RAG 성능이 아니다.
+
+실제 parser 실행은 다음과 같다. 환경 경로는 설치 위치에 맞게 바꿀 수 있지만 package,
+모델 옵션, CPU, 페이지 목록은 `research/specs/experiment_spec_v1_4.json`과 같아야 한다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.open_source_parser_v1_4 \
+  --parser docling \
+  --spec research/specs/experiment_spec_v1_4.json \
+  --source-dir research/work/financebench-source/pdfs \
+  --output research/work/open-source-parser-v1_4-docling-run-007 \
+  --docling-executable /private/tmp/compoundai-docling-v1_4/bin/docling
+
+PYTHONPATH=backend:. /private/tmp/compoundai-paddle-v1_4/bin/python \
+  -m research.open_source_parser_v1_4 \
+  --parser pp-structure-v3 \
+  --spec research/specs/experiment_spec_v1_4.json \
+  --source-dir research/work/financebench-source/pdfs \
+  --output research/work/open-source-parser-v1_4-pp-structure-v3-run-012 \
+  --paddle-cache research/work/model-cache/paddlex-v1_4
+```
+
+각 parser는 raw JSON과 `CanonicalDocument`를 별도로 남긴다. 문서·원본 페이지·표·셀 ID,
+행/열 index, span, 제공된 bbox와 좌표 원점을 보존한다. Paddle HTML cell과
+`cell_box_list`의 순차 대응은 검증되지 않았다고 표시하며, 중간 raster 배열은 JSON에
+포함하지 않고 명시적 생략 레코드로 바꾼다. 파서 셀 비교는 다음처럼 실행한다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.parser_alignment_v1_4 \
+  --docling-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --paddle-dir research/work/open-source-parser-v1_4-pp-structure-v3-run-012 \
+  --output research/work/parser-alignment-v1_4-run-015.json
+```
+
+QA 사전 점검과 실행 명령은 다음과 같다. 계산 도구 pipeline은 LLM planner가 현재
+evidence source ID와 일반 지표 정의를 고르고, 프로그램이 Decimal 산술을 실행한 뒤,
+answerer가 계산 결과와 source ID만 보고 답하도록 분리한다. 질문 ID나 문서명별 정답
+계획은 없다. `--prior-calls`는 실패 응답 로깅 결함으로 중단된 run-014의 27회도 이번
+작업의 60회 상한에 포함하기 위한 복구 실행 인수다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_4 preflight \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_4.json \
+  --config research/configs/dependency_aware_pilot_llama3_parser_calculator_v1_4.json \
+  --max-calls 60
+
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_4 run \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_4.json \
+  --config research/configs/dependency_aware_pilot_llama3_parser_calculator_v1_4.json \
+  --max-calls 60 --prior-calls 27 \
+  --output research/work/dependency-aware-pilot-v1_4-parser-calculator-run-016
+```
+
+실제 결과는 `research/results/dependency-aware-pilot-v1_4-parser-calculator-run-016-summary.json`과
+`research/reports/dependency-aware-pilot-v1_4-parser-calculator-run-016.md`에 있다. pypdf 및
+Docling 기존 QA는 각각 완전 정답 2/7(Primary 2/6)이었다. 계산 도구 19개 실행은 planner
+길이 초과 17건과 잘못된 output reference 2건으로 모두 답변 전에 실패했다. 그러므로
+계산 실행기 구현은 `IMPLEMENTED`, live 계산·출처 chain은 `BLOCKED`, 수정 효과는
+`BLOCKED`다. 실패를 0 복구로 바꾸어 해석하지 않는다.
+
+## v1.5 짧은 planner 계약 개발 진단
+
+v1.5는 v1.4의 Docling raw/canonical 결과를 그대로 재사용하며 parser를 다시 실행하거나
+설치하지 않는다. Synap도 필요하지 않다. v1.4 calculator 요청의 전체 성공률은 0/7이었고
+완료된 calculator 응답이 없었으므로 완료 응답 정확도는 0이 아니라 측정 불가였다. 원시
+ledger상 17건은 8,192-token 문맥이 `prompt_eval_count=8191`까지 찬 입력 잘림이고, 나머지
+2건은 존재하지 않는 숫자 문자열을 output reference로 쓴 참조 실패였다.
+
+v1.5 planner에는 현재 페이지의 모든 숫자 후보를 유지하되 `s0` 같은 짧은 ID, 현재 값,
+parser 행/기간/단위, 짧은 cell/span 문맥만 전달한다. 원래 source ID, bbox, 좌표 및 전체
+metadata 대응표는 raw input에 별도로 보존된다. 모델은 generic metric ID, 최대 8개
+role/source 선택, 최대 6개 유한 연산, program이 부여하는 `r0` 결과 참조만 출력한다.
+정답, 문서/질문 ID, repair label, clean 값은 planner와 calculator에 전달하지 않는다.
+
+사전 점검과 clean gate 실행은 다음과 같다. raw 경로는 덮어쓰지 않는
+`research/work` 아래의 새 디렉터리를 지정한다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_5 preflight \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_5.json \
+  --config research/configs/dependency_aware_pilot_llama3_short_calculator_v1_5.json \
+  --max-calls 16
+
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_5 run-clean \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_5.json \
+  --config research/configs/dependency_aware_pilot_llama3_short_calculator_v1_5.json \
+  --max-calls 16 \
+  --output research/work/dependency-aware-pilot-v1_5-short-calculator-clean-run-NEW
+```
+
+AMD clean의 metric/value/period/unit/arithmetic/evidence 및 program-result 사용을 원문과
+대조한 별도 gate가 모두 통과할 때만 다음 repair phase를 실행한다. clean phase 누적 호출과
+repair 10회를 합쳐 정상 경로 14회, 모든 실패를 포함한 hard limit 16회를 코드로 강제한다.
+자동 재시도와 결과 기반 prompt 변형은 없다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_5 run-repairs \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_5.json \
+  --config research/configs/dependency_aware_pilot_llama3_short_calculator_v1_5.json \
+  --max-calls 16 \
+  --clean-run research/work/dependency-aware-pilot-v1_5-short-calculator-clean-run-NEW \
+  --amd-gate research/judgments/dependency-aware-pilot-v1_5-amd-clean-gate.json \
+  --output research/work/dependency-aware-pilot-v1_5-short-calculator-repair-run-NEW
+```
+
+이 실행은 페이지 지정 oracle-evidence 개발 진단이다. 독립 평가, 검색 성능, 정책 비교,
+parser 우수성 또는 논문 주장을 검증하지 않는다.
+
+실제 동결 실행은 `research/reports/dependency-aware-pilot-v1_5-short-calculator-run-018.md`와
+`research/results/dependency-aware-pilot-v1_5-short-calculator-run-018-summary-v2.json`에 있다.
+초기 summary는 audit 작성자 표기 정정 전 산출물로 삭제하지 않고 보존했으며, v2가 현재
+판정이다.
+AMD planner는 입력 3,803/output 147 tokens로 입력 잘림 없이 끝났지만, 선언하지 않은
+source를 step에서 참조했고 의미적으로도 기간·분모·구성 값을 잘못 선택했다. 산술과
+answerer는 시작하지 않았으며 동결 stop rule에 따라 AMCOR와 repair 조건은 실행하지
+않았다. 같은 모델 prompt 재튜닝이나 parser 추가 실행도 하지 않았다.

@@ -1570,6 +1570,12 @@ frontend/src/
 
 현재 구현은 설계서의 **Phase 1~4 MVP**입니다.
 
+연구용 v1.4 경로는 Synap 없이 Docling과 PP-StructureV3의 실제 raw 출력 및
+`CanonicalDocument`를 생성하고, pypdf/Docling 근거와 기존 QA/계산 도구 QA의 개발
+진단을 재현한다. 고정 명세, 명령, 실패를 포함한 결과는
+[`research/README.md`](research/README.md#v14-오픈소스-parser와-계산-도구-개발-진단)를
+참조한다. 이 진단은 페이지를 미리 지정하므로 전체 RAG나 논문 정책 성능 결과가 아니다.
+
 - 이메일/비밀번호 회원가입, 로그인, JWT 인증
 - 첫 가입자를 ADMIN으로 생성하고 내장 Mock Parser 2개 자동 등록
 - PDF, Office, TXT, Markdown 업로드와 SHA-256 계산
@@ -1630,4 +1636,3 @@ Truth Dataset은 MVP 이후 범위입니다.
 ParseLab의 코드는 이 질문들에 대한 하나의 실용적인 답을 제공합니다. 동시에 현재
 MVP의 한계도 함께 설명하므로, “동작하는 코드”와 “운영 가능한 코드”의 차이를 학습할
 수 있습니다.
-

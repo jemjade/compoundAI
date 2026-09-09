@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "status": "POSTRUN_MANUAL_SOURCE_REVIEW_DEVELOPMENT_ONLY",
+  "source_audit": "rendered_pdf_pages_checked",
+  "review_rule": "Apply the v1.3 frozen dimensions independently; do not infer an unstated calculation, and do not require benchmark numbers that the question does not need.",
+  "judgments": [
+    {
+      "condition": "clean_general:AMCOR_2023_10K",
+      "question_id": "financebench_id_00799",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "REQUIRED_EVIDENCE_NOT_RETRIEVED",
+      "valid_required_evidence_retrieved": false,
+      "overall_task_correct": false,
+      "rationale": "The answer declines to decide; BM25 retrieved no balance-sheet evidence."
+    },
+    {
+      "condition": "clean_general:AMCOR_2023_10K",
+      "question_id": "financebench_id_00684",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "REQUIRED_EVIDENCE_NOT_RETRIEVED",
+      "valid_required_evidence_retrieved": false,
+      "overall_task_correct": false,
+      "rationale": "The answer declines to decide; BM25 retrieved no income-statement or equivalent margin evidence."
+    },
+    {
+      "condition": "clean_general:BESTBUY_2023_10K",
+      "question_id": "financebench_id_00685",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "REQUIRED_EVIDENCE_NOT_RETRIEVED",
+      "valid_required_evidence_retrieved": false,
+      "overall_task_correct": false,
+      "rationale": "The conclusion happens to agree, but retrieved pages do not contain the three-year gross-margin inputs and the answer supplies no margin calculation."
+    },
+    {
+      "condition": "clean_general:BESTBUY_2023_10K",
+      "question_id": "financebench_id_01275",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "ALL_STATED_NUMBERS_CORRECT",
+      "required_explanation_completeness": "COMPLETE",
+      "evidence_sufficiency": "AVAILABLE_AND_SUPPORTS_ANSWER",
+      "valid_required_evidence_retrieved": true,
+      "overall_task_correct": true,
+      "rationale": "BM25 retrieved and the answer cited p42; operating activities and the stated $1,824m value are correct for the requested winner."
+    },
+    {
+      "condition": "clean_general:AMD_2022_10K",
+      "question_id": "financebench_id_00222",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "REQUIRED_EVIDENCE_NOT_RETRIEVED",
+      "valid_required_evidence_retrieved": false,
+      "overall_task_correct": false,
+      "rationale": "The answer declines to decide and BM25 does not retrieve p56 or an equivalent source."
+    },
+    {
+      "condition": "clean_general:AMD_2022_10K",
+      "question_id": "financebench_id_00563",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "ALL_STATED_NUMBERS_CORRECT",
+      "required_explanation_completeness": "COMPLETE",
+      "evidence_sufficiency": "AVAILABLE_AND_SUPPORTS_ANSWER",
+      "valid_required_evidence_retrieved": true,
+      "overall_task_correct": true,
+      "rationale": "BM25 retrieved p48 and p43; the filing directly reports Data Center growth of 64%, supporting the requested segment answer without requiring all benchmark arithmetic."
+    },
+    {
+      "condition": "clean_general:AMD_2022_10K",
+      "question_id": "financebench_id_00757",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "NOT_REQUIRED_DIRECT_ANSWER",
+      "evidence_sufficiency": "REQUIRED_EVIDENCE_NOT_RETRIEVED",
+      "valid_required_evidence_retrieved": false,
+      "overall_task_correct": false,
+      "rationale": "The answer says no; BM25 retrieved exhibit-index pages rather than p12."
+    },
+    {
+      "condition": "clean_oracle:financebench_id_00799",
+      "question_id": "financebench_id_00799",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "rationale": "The page is sufficient, but the answer adds inventory to current assets, mixes year cells, and reports 0.83/0.93 instead of about 0.69/0.67."
+    },
+    {
+      "condition": "clean_oracle:financebench_id_00684",
+      "question_id": "financebench_id_00684",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "rationale": "Its own 18.5%, 19.3%, 21.1% sequence contradicts improving; 19.3 and 21.1 are also not correct one-decimal rounding of the supplied inputs."
+    },
+    {
+      "condition": "clean_oracle:financebench_id_00685",
+      "question_id": "financebench_id_00685",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "rationale": "The stated margins differ by less than two percentage points, contradicting the conclusion, and each displayed formula wrongly subtracts cost from gross profit."
+    },
+    {
+      "condition": "clean_oracle:financebench_id_01275",
+      "question_id": "financebench_id_01275",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "ALL_STATED_NUMBERS_CORRECT",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "rationale": "All three signed totals are correct, but +1,824 operating is greater than -962 investing, so choosing investing misreads the requested comparison."
+    },
+    {
+      "condition": "clean_oracle:financebench_id_00222",
+      "question_id": "financebench_id_00222",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "rationale": "The healthy conclusion agrees with the benchmark, but the stated formula includes prepaid assets, omits related receivables, and cannot yield the claimed 0.93; the audited benchmark ratio is 1.57."
+    },
+    {
+      "condition": "clean_oracle:financebench_id_00563",
+      "question_id": "financebench_id_00563",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "ALL_STATED_NUMBERS_CORRECT",
+      "required_explanation_completeness": "COMPLETE",
+      "evidence_sufficiency": "AVAILABLE_AND_SUPPORTS_ANSWER",
+      "overall_task_correct": true,
+      "rationale": "The source page directly states Data Center rose 64% from about $3.7bn to $6bn and the answer identifies it."
+    },
+    {
+      "condition": "clean_oracle:financebench_id_00757",
+      "question_id": "financebench_id_00757",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "NOT_REQUIRED_DIRECT_ANSWER",
+      "evidence_sufficiency": "AVAILABLE_AND_SUPPORTS_ANSWER",
+      "overall_task_correct": true,
+      "rationale": "The yes/no question is correctly answered from cited p12; the unmentioned 16% is useful but not required by the question."
+    },
+    {
+      "condition": "controlled_repair:damaged",
+      "question_id": "financebench_id_00222",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "rationale": "The answer bypasses damaged components via total current assets but reports a current ratio as a quick ratio and 15,019/6,369 is about 2.36, not 2.38."
+    },
+    {
+      "condition": "controlled_repair:A_only",
+      "question_id": "financebench_id_00222",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "rationale": "The stated substituted sum includes prepaid assets and does not equal the claimed 0.83; it does not provide the benchmark 1.57 ratio."
+    },
+    {
+      "condition": "controlled_repair:B_only",
+      "question_id": "financebench_id_00222",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "rationale": "The answer again uses total current assets including inventory as the numerator and labels the resulting current ratio a quick ratio."
+    },
+    {
+      "condition": "controlled_repair:AB",
+      "question_id": "financebench_id_00222",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "rationale": "The simultaneous repair run gives a healthy conclusion but no ratio or substituted calculation, so it is not a quantitative recovery."
+    }
+  ]
+}
