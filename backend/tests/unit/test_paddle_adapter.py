@@ -28,6 +28,10 @@ class _Array:
         return [[1.0, 2.0], [3.0, 4.0]]
 
 
+class _NestedJson:
+    json = {"block_label": "table", "block_content": "kept"}
+
+
 class _Result:
     def __init__(self, page_index: int = 0) -> None:
         self.json = {
@@ -361,6 +365,8 @@ def test_json_safe_handles_non_standard_values(tmp_path: Path) -> None:
     converted = json_safe(
         {
             "array": _Array(),
+            "input_img": _Array(),
+            "nested": _NestedJson(),
             "enum": _Value.READY,
             "path": tmp_path,
             "nan": float("nan"),
@@ -370,6 +376,12 @@ def test_json_safe_handles_non_standard_values(tmp_path: Path) -> None:
 
     assert converted == {
         "array": [[1.0, 2.0], [3.0, 4.0]],
+        "input_img": {
+            "omitted": True,
+            "reason": "intermediate_raster_payload_not_embedded_in_json",
+            "python_type": "_Array",
+        },
+        "nested": {"block_label": "table", "block_content": "kept"},
         "enum": "ready",
         "path": str(tmp_path),
         "nan": None,
