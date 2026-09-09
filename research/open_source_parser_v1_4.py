@@ -17,8 +17,6 @@ from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
-from pypdf import PdfReader, PdfWriter
-
 from research.pilot import sha256, write_json
 
 SPEC_STATUS = "FROZEN_DEVELOPMENT_DIAGNOSTIC"
@@ -62,6 +60,8 @@ def _remap_single_page(canonical: dict[str, Any], source_page: int) -> dict[str,
 
 
 def _split_page(source: Path, page: int, destination: Path) -> None:
+    from pypdf import PdfReader, PdfWriter
+
     reader = PdfReader(source)
     if page < 1 or page > len(reader.pages):
         raise ValueError(f"Page {page} is outside {source.name}")
