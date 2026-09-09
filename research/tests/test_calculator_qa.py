@@ -6,6 +6,7 @@ import pytest
 
 from research.budgeted_ollama import BudgetedOllamaGenerator
 from research.calculator_qa import (
+    ShortCalculatorError,
     build_short_source_registry,
     execute_plan,
     execute_short_plan,
@@ -272,3 +273,50 @@ def test_short_pipeline_records_source_operation_result_answer_chain():
     }
     assert any(edge["kind"] == "current_source_calculator_operand" for edge in result["dependency_edges"])
     assert any(edge["kind"] == "answer_declared_program_result" for edge in result["dependency_edges"])
+
+
+def test_short_pipeline_fail_closes_undeclared_step_source_before_arithmetic():
+    blocks = _amd_block()
+    registry = build_short_source_registry(blocks)
+    cash = next(row["short_id"] for row in registry if row["full_source"].get("cell_id") == "cash")
+    receivable = next(
+        row["short_id"]
+        for row in registry
+        if row["full_source"].get("cell_id") == "ar"
+    )
+
+    class InvalidGenerator:
+        call_count = 0
+
+        def generate_structured(self, **_kwargs):
+            self.call_count += 1
+            return Generation(
+                text=json.dumps(
+                    {
+                        "metric_id": "quick_ratio_liquid_components_v1",
+                        "inputs": [{"role": "component", "source": cash}],
+                        "steps": [{"op": "add", "args": [cash, receivable]}],
+                        "outputs": ["r0"],
+                    }
+                ),
+                response_id="fake-invalid",
+                model="fake",
+                usage={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+                status="completed",
+            )
+
+    with pytest.raises(ShortCalculatorError) as captured:
+        run_short_calculator_qa(
+            question={
+                "question_id": "q",
+                "document_id": "AMD",
+                "question": "Add the two values.",
+            },
+            blocks=blocks,
+            generator=InvalidGenerator(),
+            num_ctx=8192,
+        )
+    assert captured.value.trace["format_validation"] == "PASSED"
+    assert captured.value.trace["reference_validation"] == "FAILED"
+    assert captured.value.trace["arithmetic_execution"] == "NOT_STARTED"
+    assert captured.value.trace["answerer_call"] == "NOT_STARTED"

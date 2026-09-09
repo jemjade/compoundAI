@@ -538,7 +538,7 @@ PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_5 run-c
   --spec research/specs/experiment_spec_v1_5.json \
   --config research/configs/dependency_aware_pilot_llama3_short_calculator_v1_5.json \
   --max-calls 16 \
-  --output research/work/dependency-aware-pilot-v1_5-short-calculator-clean-run-017
+  --output research/work/dependency-aware-pilot-v1_5-short-calculator-clean-run-NEW
 ```
 
 AMD clean의 metric/value/period/unit/arithmetic/evidence 및 program-result 사용을 원문과
@@ -553,10 +553,19 @@ PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_5 run-r
   --spec research/specs/experiment_spec_v1_5.json \
   --config research/configs/dependency_aware_pilot_llama3_short_calculator_v1_5.json \
   --max-calls 16 \
-  --clean-run research/work/dependency-aware-pilot-v1_5-short-calculator-clean-run-017 \
+  --clean-run research/work/dependency-aware-pilot-v1_5-short-calculator-clean-run-NEW \
   --amd-gate research/judgments/dependency-aware-pilot-v1_5-amd-clean-gate.json \
-  --output research/work/dependency-aware-pilot-v1_5-short-calculator-repair-run-018
+  --output research/work/dependency-aware-pilot-v1_5-short-calculator-repair-run-NEW
 ```
 
 이 실행은 페이지 지정 oracle-evidence 개발 진단이다. 독립 평가, 검색 성능, 정책 비교,
 parser 우수성 또는 논문 주장을 검증하지 않는다.
+
+실제 동결 실행은 `research/reports/dependency-aware-pilot-v1_5-short-calculator-run-018.md`와
+`research/results/dependency-aware-pilot-v1_5-short-calculator-run-018-summary-v2.json`에 있다.
+초기 summary는 audit 작성자 표기 정정 전 산출물로 삭제하지 않고 보존했으며, v2가 현재
+판정이다.
+AMD planner는 입력 3,803/output 147 tokens로 입력 잘림 없이 끝났지만, 선언하지 않은
+source를 step에서 참조했고 의미적으로도 기간·분모·구성 값을 잘못 선택했다. 산술과
+answerer는 시작하지 않았으며 동결 stop rule에 따라 AMCOR와 repair 조건은 실행하지
+않았다. 같은 모델 prompt 재튜닝이나 parser 추가 실행도 하지 않았다.
