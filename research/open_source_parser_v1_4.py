@@ -234,12 +234,15 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                     )
                 manifest["results"].append(row)
             except Exception as error:  # noqa: BLE001 - preserve each actual parser failure
+                cause = error.__cause__
                 failure = {
                     "document_id": document_id,
                     "source_page": page,
                     "status": "BLOCKED",
                     "failure_type": type(error).__name__,
                     "failure_message": str(error),
+                    "root_cause_type": type(cause).__name__ if cause else None,
+                    "root_cause_message": str(cause) if cause else None,
                 }
                 manifest["failures"].append(failure)
             write_json(args.output / "manifest.json", manifest)
