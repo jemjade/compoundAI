@@ -299,6 +299,12 @@ def test_ollama_adapter_rejects_truncated_response_and_nonlocal_url():
         adapter.generate(
             stage="synthesis", instructions="i", input_text="x", max_output_tokens=1
         )
+    assert adapter.last_raw_response == {
+        "model": "gemma3:4b",
+        "response": "partial",
+        "done": True,
+        "done_reason": "length",
+    }
 
 
 def test_config_rejects_conflicting_sampling_controls():

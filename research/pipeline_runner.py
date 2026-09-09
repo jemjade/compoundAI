@@ -131,7 +131,9 @@ def _qa_response_schema(
     except (json.JSONDecodeError, KeyError, TypeError):
         return schema
     if chunk_ids and all(isinstance(chunk_id, str) for chunk_id in chunk_ids):
-        schema["properties"]["evidence_chunk_ids"]["items"]["enum"] = list(dict.fromkeys(chunk_ids))
+        schema["properties"]["evidence_chunk_ids"]["items"]["enum"] = list(
+            dict.fromkeys(chunk_ids)
+        )
     return schema
 
 
@@ -241,9 +243,7 @@ class RunnerConfig:
         if self.synthesis_mode not in {"model", "passthrough"}:
             raise ValueError("synthesis_mode must be model or passthrough")
         if self.qa_output_contract not in SUPPORTED_QA_OUTPUT_CONTRACTS:
-            raise ValueError(
-                "qa_output_contract must be concise_v1 or quantitative_v2"
-            )
+            raise ValueError("qa_output_contract must be concise_v1 or quantitative_v2")
         positive = (
             self.timeout_seconds,
             self.synthesis_batch_chars,
@@ -261,7 +261,9 @@ class RunnerConfig:
         if not math.isfinite(self.timeout_seconds):
             raise ValueError("timeout_seconds must be finite")
         if not 0 <= self.chunk_overlap_chars < self.chunk_chars:
-            raise ValueError("chunk_overlap_chars must be nonnegative and smaller than chunk_chars")
+            raise ValueError(
+                "chunk_overlap_chars must be nonnegative and smaller than chunk_chars"
+            )
         if type(self.max_retries) is not int or self.max_retries < 0:
             raise ValueError("max_retries must be a nonnegative integer")
         if self.ollama_num_ctx is not None and (
@@ -271,9 +273,14 @@ class RunnerConfig:
         if self.ollama_keep_alive is not None and (
             isinstance(self.ollama_keep_alive, bool)
             or not isinstance(self.ollama_keep_alive, str | int)
-            or (isinstance(self.ollama_keep_alive, str) and not self.ollama_keep_alive.strip())
+            or (
+                isinstance(self.ollama_keep_alive, str)
+                and not self.ollama_keep_alive.strip()
+            )
         ):
-            raise ValueError("ollama_keep_alive must be a duration string or integer seconds")
+            raise ValueError(
+                "ollama_keep_alive must be a duration string or integer seconds"
+            )
         if self.temperature is not None and not 0 <= self.temperature <= 2:
             raise ValueError("temperature must be between 0 and 2")
         if self.top_p is not None and not 0 <= self.top_p <= 1:
@@ -281,7 +288,8 @@ class RunnerConfig:
         if self.temperature is not None and self.top_p is not None:
             raise ValueError("Set temperature or top_p, not both")
         if self.provider == "openai_responses" and (
-            not self.api_key_env or not re.fullmatch(r"[A-Z_][A-Z0-9_]*", self.api_key_env)
+            not self.api_key_env
+            or not re.fullmatch(r"[A-Z_][A-Z0-9_]*", self.api_key_env)
         ):
             raise ValueError("api_key_env must be an environment variable name")
         if self.provider == "ollama_generate" and self.api_key_env is not None:
@@ -295,7 +303,9 @@ class RunnerConfig:
             or parsed.query
             or parsed.fragment
         ):
-            raise ValueError("base_url must be an HTTP(S) URL without credentials/query/fragment")
+            raise ValueError(
+                "base_url must be an HTTP(S) URL without credentials/query/fragment"
+            )
         if self.provider == "ollama_generate" and (
             parsed.scheme != "http"
             or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
@@ -310,8 +320,12 @@ class RunnerConfig:
     def public_dict(self) -> dict[str, Any]:
         value = asdict(self)
         parsed = urlsplit(self.base_url)
-        value["base_url"] = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
-        value["api_key_configured"] = bool(self.api_key_env and os.environ.get(self.api_key_env))
+        value["base_url"] = urlunsplit(
+            (parsed.scheme, parsed.netloc, parsed.path, "", "")
+        )
+        value["api_key_configured"] = bool(
+            self.api_key_env and os.environ.get(self.api_key_env)
+        )
         return value
 
 
@@ -347,7 +361,9 @@ class OpenAIResponsesAdapter:
         if client is None:
             api_key = os.environ.get(config.api_key_env or "")
             if not api_key:
-                raise PipelineError(f"Missing API key environment variable: {config.api_key_env}")
+                raise PipelineError(
+                    f"Missing API key environment variable: {config.api_key_env}"
+                )
             try:
                 import openai
                 from openai import OpenAI
@@ -389,7 +405,9 @@ class OpenAIResponsesAdapter:
                 "type": "json_schema",
                 "name": "grounded_answer",
                 "strict": True,
-                "schema": _qa_response_schema(input_text, self.config.qa_output_contract),
+                "schema": _qa_response_schema(
+                    input_text, self.config.qa_output_contract
+                ),
             }
         if text_config:
             parameters["text"] = text_config
@@ -400,11 +418,15 @@ class OpenAIResponsesAdapter:
         try:
             response = self.client.responses.create(**parameters)
         except Exception as error:
-            raise PipelineError(f"{stage} model request failed: {type(error).__name__}") from error
+            raise PipelineError(
+                f"{stage} model request failed: {type(error).__name__}"
+            ) from error
         status = str(getattr(response, "status", ""))
         text = str(getattr(response, "output_text", "") or "")
         if status != "completed" or not text.strip():
-            raise PipelineError(f"{stage} model response was {status or 'missing'} or empty")
+            raise PipelineError(
+                f"{stage} model response was {status or 'missing'} or empty"
+            )
         usage_obj = getattr(response, "usage", None)
         usage = {
             key: int(getattr(usage_obj, key, 0) or 0)
@@ -456,6 +478,7 @@ class OllamaGenerateAdapter:
     ) -> None:
         self.config = config
         self.transport = transport or self._post
+        self.last_raw_response: dict[str, Any] | None = None
         if transport is None:
             runtime_metadata = self._discover_runtime()
         self.provider_runtime = runtime_metadata or {"transport": "injected"}
@@ -493,7 +516,9 @@ class OllamaGenerateAdapter:
         )
         if selected is None:
             raise PipelineError(f"Ollama model is not installed: {self.config.model}")
-        details = selected.get("details") if isinstance(selected.get("details"), dict) else {}
+        details = (
+            selected.get("details") if isinstance(selected.get("details"), dict) else {}
+        )
         return {
             "ollama_version": str(version.get("version", "unknown")),
             "model_digest": selected.get("digest"),
@@ -501,7 +526,9 @@ class OllamaGenerateAdapter:
             "quantization_level": details.get("quantization_level"),
         }
 
-    def _post(self, url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+    def _post(
+        self, url: str, payload: dict[str, Any], timeout: float
+    ) -> dict[str, Any]:
         return _request_json(url, timeout=timeout, payload=payload)
 
     def generate(
@@ -555,6 +582,7 @@ class OllamaGenerateAdapter:
 
         response: dict[str, Any] | None = None
         last_error: Exception | None = None
+        self.last_raw_response = None
         for _ in range(self.config.max_retries + 1):
             try:
                 response = self.transport(
@@ -562,6 +590,7 @@ class OllamaGenerateAdapter:
                     payload,
                     self.config.timeout_seconds,
                 )
+                self.last_raw_response = response
                 break
             except Exception as error:
                 last_error = error
@@ -605,7 +634,9 @@ class OllamaGenerateAdapter:
 
 def _validate_payload(payload: dict[str, Any]) -> None:
     if not isinstance(payload, dict) or set(payload) != ALLOWED_PAYLOAD_KEYS:
-        raise ValueError("Runner accepts only schema_version, repeat_id, blocks, and questions")
+        raise ValueError(
+            "Runner accepts only schema_version, repeat_id, blocks, and questions"
+        )
     if payload.get("schema_version") != 1 or type(payload.get("repeat_id")) is not int:
         raise ValueError("Invalid runner schema_version or repeat_id")
     blocks = payload.get("blocks")
@@ -626,7 +657,9 @@ def _validate_payload(payload: dict[str, Any]) -> None:
         required = ("block_id", "document_id", "page_number", "text")
         if any(key not in block for key in required):
             raise ValueError("A block is missing a required field")
-        if not all(isinstance(block[key], str) for key in ("block_id", "document_id", "text")):
+        if not all(
+            isinstance(block[key], str) for key in ("block_id", "document_id", "text")
+        ):
             raise ValueError("Block identifiers and text must be strings")
         if type(block["page_number"]) is not int or block["page_number"] < 1:
             raise ValueError("Block page_number must be a positive integer")
@@ -658,11 +691,15 @@ def _source_segments(blocks: list[dict[str, Any]], limit: int) -> list[dict[str,
             continue
         for start in range(0, len(text), limit):
             end = min(len(text), start + limit)
-            segments.append({"block": block, "start": start, "end": end, "text": text[start:end]})
+            segments.append(
+                {"block": block, "start": start, "end": end, "text": text[start:end]}
+            )
     return segments
 
 
-def synthesis_batches(blocks: list[dict[str, Any]], limit: int) -> list[list[dict[str, Any]]]:
+def synthesis_batches(
+    blocks: list[dict[str, Any]], limit: int
+) -> list[list[dict[str, Any]]]:
     batches: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
     current_chars = 0
@@ -698,7 +735,9 @@ def _synthesis_input(batch: list[dict[str, Any]]) -> str:
         }
         header["text_start"] = segment["start"]
         header["text_end"] = segment["end"]
-        rows.append(f"SOURCE {json.dumps(header, ensure_ascii=False)}\n{segment['text']}")
+        rows.append(
+            f"SOURCE {json.dumps(header, ensure_ascii=False)}\n{segment['text']}"
+        )
     return "\n\n".join(rows)
 
 
@@ -724,11 +763,15 @@ def tokenize(text: str) -> list[str]:
     return [match.group(0).lower() for match in TOKEN_PATTERN.finditer(text)]
 
 
-def bm25_search(query: str, chunks: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
+def bm25_search(
+    query: str, chunks: list[dict[str, Any]], top_k: int
+) -> list[dict[str, Any]]:
     tokenized = [tokenize(chunk["text"]) for chunk in chunks]
     query_tokens = tokenize(query)
     document_count = len(chunks)
-    average_length = sum(map(len, tokenized)) / document_count if document_count else 0.0
+    average_length = (
+        sum(map(len, tokenized)) / document_count if document_count else 0.0
+    )
     document_frequency = Counter()
     for tokens in tokenized:
         document_frequency.update(set(tokens))
@@ -779,7 +822,9 @@ def _parse_qa(
             isinstance(value[key], str)
             for key in ("conclusion", "quantitative_explanation")
         ):
-            raise PipelineError("Quantitative QA conclusion or explanation must be a string")
+            raise PipelineError(
+                "Quantitative QA conclusion or explanation must be a string"
+            )
         calculations = value["calculations"]
         if not isinstance(calculations, list) or not all(
             isinstance(item, str) for item in calculations
@@ -797,7 +842,9 @@ def _parse_qa(
         if not answer:
             answer = "[MODEL_RETURNED_NO_QUANTITATIVE_CONTENT]"
     evidence = value["evidence_chunk_ids"]
-    if not isinstance(evidence, list) or not all(isinstance(item, str) for item in evidence):
+    if not isinstance(evidence, list) or not all(
+        isinstance(item, str) for item in evidence
+    ):
         raise PipelineError("QA evidence_chunk_ids must be a string array")
     if set(evidence) - valid_chunk_ids:
         raise PipelineError("QA cited unavailable chunks")
@@ -815,7 +862,8 @@ def _code_provenance() -> dict[str, Any]:
     root = Path(__file__).resolve().parents[1]
     files = [root / "research/pipeline_runner.py", root / "research/pilot.py"]
     file_hashes = {
-        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in files
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in files
     }
     combined_hash = digest(file_hashes)
     git_commit = None
@@ -868,7 +916,9 @@ def run_pipeline(
             raise ValueError("Forced evidence must name at least one source block")
         unknown = set(forced_evidence_block_ids) - available_block_ids
         if unknown:
-            raise ValueError(f"Forced evidence contains unknown block IDs: {sorted(unknown)}")
+            raise ValueError(
+                f"Forced evidence contains unknown block IDs: {sorted(unknown)}"
+            )
     if not config.model:
         raise ValueError("Set model in config or RESEARCH_LLM_MODEL")
     batches = synthesis_batches(payload["blocks"], config.synthesis_batch_chars)
@@ -899,7 +949,9 @@ def run_pipeline(
                 max_output_tokens=config.synthesis_max_output_tokens,
             )
             generations.append(generation)
-            source_ids = list(dict.fromkeys(item["block"]["block_id"] for item in batch))
+            source_ids = list(
+                dict.fromkeys(item["block"]["block_id"] for item in batch)
+            )
             synthesis_id = f"synthesis:{execution_id}:{index}"
             synthesis_node = {
                 "synthesis_id": synthesis_id,
@@ -915,7 +967,9 @@ def run_pipeline(
                     "input_sha256": hashlib.sha256(input_text.encode()).hexdigest(),
                     "output_id": synthesis_id,
                     "output_text": generation.text,
-                    "output_sha256": hashlib.sha256(generation.text.encode()).hexdigest(),
+                    "output_sha256": hashlib.sha256(
+                        generation.text.encode()
+                    ).hexdigest(),
                     "source_spans": [
                         {
                             "block_id": item["block"]["block_id"],
@@ -932,16 +986,22 @@ def run_pipeline(
             )
             output_chunks = []
             for chunk_index, (start, end, text) in enumerate(
-                _chunk_text(generation.text, config.chunk_chars, config.chunk_overlap_chars)
+                _chunk_text(
+                    generation.text, config.chunk_chars, config.chunk_overlap_chars
+                )
             ):
-                referenced = [item for item in SOURCE_PATTERN.findall(text) if item in source_ids]
+                referenced = [
+                    item for item in SOURCE_PATTERN.findall(text) if item in source_ids
+                ]
                 chunk_sources = list(dict.fromkeys(referenced)) or source_ids
                 chunk = {
                     "chunk_id": f"chunk:{execution_id}:{index}:{chunk_index}",
                     "parent_synthesis_id": synthesis_id,
                     "source_block_ids": chunk_sources,
                     "lineage_mode": (
-                        "explicit_source_markers" if referenced else "synthesis_batch_fallback"
+                        "explicit_source_markers"
+                        if referenced
+                        else "synthesis_batch_fallback"
                     ),
                     "start": start,
                     "end": end,
@@ -978,7 +1038,9 @@ def run_pipeline(
                     "output_id": synthesis_id,
                     "output_text": text,
                     "output_sha256": hashlib.sha256(text.encode()).hexdigest(),
-                    "source_spans": [{"block_id": source_id, "start": 0, "end": len(text)}],
+                    "source_spans": [
+                        {"block_id": source_id, "start": 0, "end": len(text)}
+                    ],
                     "transform_version": PASSTHROUGH_VERSION,
                 }
             )
@@ -1011,7 +1073,9 @@ def run_pipeline(
     answers = []
     for question in payload["questions"]:
         if forced_evidence_block_ids is None:
-            retrieved = bm25_search(question["question"], chunks, config.retrieval_top_k)
+            retrieved = bm25_search(
+                question["question"], chunks, config.retrieval_top_k
+            )
             retrieval_mode = "bm25_top_k"
         else:
             forced = set(forced_evidence_block_ids)
@@ -1126,7 +1190,9 @@ def run_pipeline(
     code_provenance = _code_provenance()
     metadata = {
         "status": "completed",
-        "execution_mode": getattr(generator, "execution_mode", "test_or_custom_generator"),
+        "execution_mode": getattr(
+            generator, "execution_mode", "test_or_custom_generator"
+        ),
         "pipeline_execution_id": execution_id,
         "provider": config.provider,
         "requested_model": config.model,
@@ -1185,7 +1251,9 @@ def run_pipeline(
     return {"answers": answers, "metadata": metadata, "trace": trace}
 
 
-def preflight(case: dict[str, Any], config: RunnerConfig, repeats: int) -> dict[str, Any]:
+def preflight(
+    case: dict[str, Any], config: RunnerConfig, repeats: int
+) -> dict[str, Any]:
     config.validate()
     if repeats < 1:
         raise ValueError("repeats must be positive")
@@ -1195,7 +1263,9 @@ def preflight(case: dict[str, Any], config: RunnerConfig, repeats: int) -> dict[
     for repeat in range(repeats):
         for condition, repairs in CONDITIONS.items():
             payload = runner_payload(case, repairs, repeat)
-            batches = len(synthesis_batches(payload["blocks"], config.synthesis_batch_chars))
+            batches = len(
+                synthesis_batches(payload["blocks"], config.synthesis_batch_chars)
+            )
             synthesis_calls = batches if config.synthesis_mode == "model" else 0
             questions = len(payload["questions"])
             calls = synthesis_calls + questions
@@ -1212,7 +1282,9 @@ def preflight(case: dict[str, Any], config: RunnerConfig, repeats: int) -> dict[
                     "qa_calls": questions,
                     "total_calls": calls,
                     "max_output_tokens": max_output_tokens,
-                    "input_characters": sum(len(block["text"]) for block in payload["blocks"]),
+                    "input_characters": sum(
+                        len(block["text"]) for block in payload["blocks"]
+                    ),
                 }
             )
             total += calls
@@ -1254,7 +1326,9 @@ def main() -> None:
             _read_stdin_payload(),
             config,
             forced_evidence_block_ids=(
-                tuple(args.force_evidence_block_id) if args.force_evidence_block_id else None
+                tuple(args.force_evidence_block_id)
+                if args.force_evidence_block_id
+                else None
             ),
         )
         print(json.dumps(response, ensure_ascii=False))
@@ -1263,7 +1337,9 @@ def main() -> None:
     report = preflight(case, config, args.repeats)
     allowed = args.max_total_calls
     report["max_total_calls"] = allowed
-    report["within_call_budget"] = allowed is None or report["estimated_model_calls"] <= allowed
+    report["within_call_budget"] = (
+        allowed is None or report["estimated_model_calls"] <= allowed
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if not report["within_call_budget"]:
         raise SystemExit(2)

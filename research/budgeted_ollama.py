@@ -70,6 +70,7 @@ class BudgetedOllamaGenerator:
                 response_schema=response_schema,
             )
         except Exception as error:
+            raw_provider_response = getattr(self.adapter, "last_raw_response", None)
             write_json(
                 path,
                 {
@@ -77,6 +78,7 @@ class BudgetedOllamaGenerator:
                     "status": "failed",
                     "failure_type": type(error).__name__,
                     "failure_message": str(error),
+                    "raw_provider_response": raw_provider_response,
                     "finished_at": datetime.now(UTC).isoformat(),
                 },
             )
