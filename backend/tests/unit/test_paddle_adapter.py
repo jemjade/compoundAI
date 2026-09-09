@@ -17,6 +17,7 @@ from app.adapters.parsers.paddle_structure import (
 )
 from app.core.config import Settings
 from app.core.exceptions import AppError
+from app.normalizers.paddle_normalizer import normalize_paddle_response
 
 
 class _Value(Enum):
@@ -387,6 +388,50 @@ def test_json_safe_handles_non_standard_values(tmp_path: Path) -> None:
         "nan": None,
         "bytes": "한글",
     }
+
+
+def test_normalizer_preserves_string_serialized_paddle_blocks() -> None:
+    raw = {
+        "content": {
+            "markdown": "",
+            "pages": [
+                {
+                    "page_number": 1,
+                    "markdown": "",
+                    "raw": {
+                        "page_index": 0,
+                        "width": 100,
+                        "height": 200,
+                        "parsing_res_list": [
+                            "#################\nindex:\t3\nlabel:\ttable\n"
+                            "region_label:\ttable\nbbox:\t[1, 2, 90, 100]\n"
+                            "content:\tA B\n#################"
+                        ],
+                        "table_res_list": [
+                            {
+                                "pred_html": "<table><tr><td>A</td><td>B</td></tr></table>",
+                                "cell_box_list": [[1, 2, 10, 10], [11, 2, 20, 10]],
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+    }
+    canonical = normalize_paddle_response(
+        raw,
+        document_id="d",
+        run_id="r",
+        parser_name="pp_structure_v3",
+        parser_version="3.7.0",
+        parser_config={},
+    )
+
+    block = canonical.pages[0].blocks[0]
+    assert block.type == "table"
+    assert block.text == "A B"
+    assert [cell.text for cell in block.cells] == ["A", "B"]
+    assert block.attributes["serialized_source"] == "paddle_parsing_result_text"
 
 
 def test_invalid_device_configuration_is_rejected() -> None:

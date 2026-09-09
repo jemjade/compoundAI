@@ -41,6 +41,7 @@ _RASTER_PAYLOAD_KEYS = {
     "input_img",
     "output_img",
     "preprocessed_img",
+    "rot_img",
     "rotated_img",
     "imgs_in_doc",
     "table_cell_img",

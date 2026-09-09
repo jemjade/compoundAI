@@ -1,5 +1,7 @@
 """PP-StructureV3 raw 페이지를 공통 Canonical Document로 투영한다."""
 
+import ast
+import re
 from html.parser import HTMLParser
 from typing import Any
 
@@ -55,6 +57,35 @@ def _table_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(tables, list):
         return []
     return [table for table in tables if isinstance(table, dict)]
+
+
+def _raw_block(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str):
+        return None
+    fields: dict[str, Any] = {}
+    for key in ("index", "label", "region_label", "bbox"):
+        match = re.search(rf"(?m)^{key}:\s*(.+)$", value)
+        if match:
+            fields[key] = match.group(1).strip()
+    content = re.search(r"(?ms)^content:\s*(.*?)(?:\n#{5,}\s*$|\Z)", value)
+    if content:
+        fields["content"] = content.group(1).strip()
+    if "label" not in fields:
+        return None
+    try:
+        bbox = ast.literal_eval(fields.get("bbox", ""))
+    except (SyntaxError, ValueError):
+        bbox = None
+    return {
+        "block_id": int(fields["index"]) if str(fields.get("index", "")).isdigit() else None,
+        "block_label": fields["label"],
+        "block_content": fields.get("content", ""),
+        "block_bbox": bbox,
+        "block_order": None,
+        "serialized_source": "paddle_parsing_result_text",
+    }
 
 
 class _PaddleTableHTMLParser(HTMLParser):
@@ -174,8 +205,9 @@ def normalize_paddle_response(
         raw_blocks = payload.get("parsing_res_list")
         blocks: list[DocumentBlock] = []
         if isinstance(raw_blocks, list):
-            for block_index, raw_block in enumerate(raw_blocks):
-                if not isinstance(raw_block, dict):
+            for block_index, raw_block_value in enumerate(raw_blocks):
+                raw_block = _raw_block(raw_block_value)
+                if raw_block is None:
                     continue
                 label = str(raw_block.get("block_label", "unknown")).lower()
                 block_type = _BLOCK_TYPES.get(label, "unknown")
@@ -214,6 +246,11 @@ def normalize_paddle_response(
                     ),
                     attributes={
                         "paddle_label": label,
+                        **(
+                            {"serialized_source": raw_block["serialized_source"]}
+                            if raw_block.get("serialized_source")
+                            else {}
+                        ),
                         **(
                             {"paddle_order": raw_block["block_order"]}
                             if raw_block.get("block_order") is not None
