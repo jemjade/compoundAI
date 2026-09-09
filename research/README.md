@@ -506,3 +506,57 @@ Docling 기존 QA는 각각 완전 정답 2/7(Primary 2/6)이었다. 계산 도�
 길이 초과 17건과 잘못된 output reference 2건으로 모두 답변 전에 실패했다. 그러므로
 계산 실행기 구현은 `IMPLEMENTED`, live 계산·출처 chain은 `BLOCKED`, 수정 효과는
 `BLOCKED`다. 실패를 0 복구로 바꾸어 해석하지 않는다.
+
+## v1.5 짧은 planner 계약 개발 진단
+
+v1.5는 v1.4의 Docling raw/canonical 결과를 그대로 재사용하며 parser를 다시 실행하거나
+설치하지 않는다. Synap도 필요하지 않다. v1.4 calculator 요청의 전체 성공률은 0/7이었고
+완료된 calculator 응답이 없었으므로 완료 응답 정확도는 0이 아니라 측정 불가였다. 원시
+ledger상 17건은 8,192-token 문맥이 `prompt_eval_count=8191`까지 찬 입력 잘림이고, 나머지
+2건은 존재하지 않는 숫자 문자열을 output reference로 쓴 참조 실패였다.
+
+v1.5 planner에는 현재 페이지의 모든 숫자 후보를 유지하되 `s0` 같은 짧은 ID, 현재 값,
+parser 행/기간/단위, 짧은 cell/span 문맥만 전달한다. 원래 source ID, bbox, 좌표 및 전체
+metadata 대응표는 raw input에 별도로 보존된다. 모델은 generic metric ID, 최대 8개
+role/source 선택, 최대 6개 유한 연산, program이 부여하는 `r0` 결과 참조만 출력한다.
+정답, 문서/질문 ID, repair label, clean 값은 planner와 calculator에 전달하지 않는다.
+
+사전 점검과 clean gate 실행은 다음과 같다. raw 경로는 덮어쓰지 않는
+`research/work` 아래의 새 디렉터리를 지정한다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_5 preflight \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_5.json \
+  --config research/configs/dependency_aware_pilot_llama3_short_calculator_v1_5.json \
+  --max-calls 16
+
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_5 run-clean \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_5.json \
+  --config research/configs/dependency_aware_pilot_llama3_short_calculator_v1_5.json \
+  --max-calls 16 \
+  --output research/work/dependency-aware-pilot-v1_5-short-calculator-clean-run-017
+```
+
+AMD clean의 metric/value/period/unit/arithmetic/evidence 및 program-result 사용을 원문과
+대조한 별도 gate가 모두 통과할 때만 다음 repair phase를 실행한다. clean phase 누적 호출과
+repair 10회를 합쳐 정상 경로 14회, 모든 실패를 포함한 hard limit 16회를 코드로 강제한다.
+자동 재시도와 결과 기반 prompt 변형은 없다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_5 run-repairs \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_5.json \
+  --config research/configs/dependency_aware_pilot_llama3_short_calculator_v1_5.json \
+  --max-calls 16 \
+  --clean-run research/work/dependency-aware-pilot-v1_5-short-calculator-clean-run-017 \
+  --amd-gate research/judgments/dependency-aware-pilot-v1_5-amd-clean-gate.json \
+  --output research/work/dependency-aware-pilot-v1_5-short-calculator-repair-run-018
+```
+
+이 실행은 페이지 지정 oracle-evidence 개발 진단이다. 독립 평가, 검색 성능, 정책 비교,
+parser 우수성 또는 논문 주장을 검증하지 않는다.

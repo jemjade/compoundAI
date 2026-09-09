@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from decimal import Decimal, DivisionByZero, InvalidOperation
@@ -14,6 +15,17 @@ from research.pipeline_runner import Generation, PipelineError
 CALCULATOR_PIPELINE_VERSION = "grounded-calculator-qa-v1"
 CALCULATOR_PLAN_PROMPT_VERSION = "grounded-calculation-plan-json-v1"
 CALCULATOR_ANSWER_PROMPT_VERSION = "grounded-calculation-answer-json-v1"
+SHORT_CALCULATOR_PIPELINE_VERSION = "grounded-calculator-qa-v1_5"
+SHORT_PLAN_PROMPT_VERSION = "grounded-calculation-short-plan-json-v1_5"
+SHORT_ANSWER_PROMPT_VERSION = "grounded-calculation-short-answer-json-v1_5"
+SHORT_PLAN_MAX_INPUTS = 8
+SHORT_PLAN_MAX_STEPS = 6
+SHORT_PLAN_MAX_OPERANDS = 4
+SHORT_PLAN_MAX_OUTPUTS = 4
+SHORT_PLANNER_MAX_OUTPUT_TOKENS = 400
+SHORT_ANSWER_MAX_OUTPUT_TOKENS = 450
+PROMPT_TOKEN_ESTIMATE_CHARS_PER_TOKEN = 3
+PROMPT_TOKEN_SAFETY_RESERVE = 512
 
 METRIC_CATALOG = {
     "quick_ratio_liquid_components_v1": (
@@ -156,6 +168,43 @@ evidence sources in the input. Do not redo arithmetic mentally or substitute ano
 a direct conclusion, the material values with rows/periods/units, the program calculation, and
 the supporting evidence_source_ids. If metric or source selection was wrong or insufficient, say
 so instead of inventing a correction. Return exactly one JSON object matching the schema."""
+
+SHORT_PLAN_INSTRUCTIONS = """Choose a metric, current evidence values, and a short arithmetic
+plan. Use only the supplied metric IDs, source IDs, roles, and operations. Result r0 is step 0,
+r1 is step 1, and so on. A step may use selected source IDs or earlier results only. Do not copy
+labels, definitions, values, question IDs, document names, or prose into the output. Do not use
+memorized facts or unstated values. Return only the JSON object required by the schema."""
+
+SHORT_ANSWER_INSTRUCTIONS = """Answer only from the validated program record. Cite short source
+IDs and result IDs exactly as supplied. State the conclusion, the relevant values with period and
+unit, and the program arithmetic. Do not redo arithmetic, substitute values, use outside facts,
+or invent missing evidence. Return only the JSON object required by the schema."""
+
+SHORT_ROLES = [
+    "numerator",
+    "denominator",
+    "current",
+    "prior",
+    "comparison_a",
+    "comparison_b",
+    "direct_value",
+    "component",
+    "exclusion",
+]
+SHORT_OPERATIONS = [
+    "identity",
+    "add",
+    "subtract",
+    "multiply",
+    "divide",
+    "percent",
+    "percent_change",
+    "absolute",
+    "max",
+    "min",
+    "greater_than_one",
+    "less_than_one",
+]
 
 
 class StructuredGenerator(Protocol):
@@ -554,6 +603,492 @@ def run_calculator_qa(
                 }
                 for output in calculation["outputs"]
                 if output["name"] in output_names
+            ],
+        ],
+    }
+
+
+class ShortCalculatorError(PipelineError):
+    """A fail-closed v1.5 error that preserves stage-level diagnostics."""
+
+    def __init__(self, message: str, trace: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.trace = trace
+
+
+def _header_context(cells: list[dict[str, Any]], cell: dict[str, Any]) -> str:
+    """Return parser-provided headers covering the value column, in reading order."""
+    column = cell.get("column")
+    if not isinstance(column, int):
+        return ""
+    headers = []
+    for other in cells:
+        start = other.get("column")
+        span = other.get("column_span", 1)
+        text = other.get("text")
+        if (
+            other.get("attributes", {}).get("column_header") is True
+            and isinstance(start, int)
+            and isinstance(span, int)
+            and start <= column < start + span
+            and isinstance(text, str)
+            and text.strip()
+        ):
+            headers.append((other.get("row", -1), text.strip()))
+    return " | ".join(text for _row, text in sorted(headers))
+
+
+def _period_and_unit(source: dict[str, Any]) -> tuple[str, str]:
+    header = source.get("header_context", "")
+    period_match = re.search(
+        r"(?:January|February|March|April|May|June|July|August|September|October|November|December)"
+        r"\s+\d{1,2},\s+\d{4}|(?:19|20)\d{2}",
+        header,
+        re.IGNORECASE,
+    )
+    period = period_match.group(0) if period_match else source.get("column_label", "")
+    unit = source.get("unit", "")
+    if not unit and re.search(r"in\s+millions", header, re.IGNORECASE):
+        unit = "millions"
+    if unit == "millions" and "$" in source.get("observed_text", ""):
+        unit = "currency millions ($)"
+    return str(period or ""), str(unit or "")
+
+
+def build_short_source_registry(
+    blocks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Map every current-state numeric source to a stable short ID without gold filtering."""
+    sources = extract_numeric_sources(blocks)
+    cells_by_block = {
+        block["block_id"]: block.get("cells", [])
+        for block in blocks
+        if isinstance(block.get("cells"), list)
+    }
+    registry = []
+    for index, source in enumerate(sources):
+        full = dict(source)
+        cells = cells_by_block.get(source["block_id"], [])
+        cell = next(
+            (row for row in cells if row.get("id") == source.get("cell_id")), None
+        )
+        full["header_context"] = (
+            _header_context(cells, cell) if isinstance(cell, dict) else ""
+        )
+        period, unit = _period_and_unit(full)
+        registry.append(
+            {
+                "short_id": f"s{index}",
+                "original_source_id": source["source_id"],
+                "planner_view": {
+                    "id": f"s{index}",
+                    "value": source["value"],
+                    "row": source.get("row_label", ""),
+                    "period": period,
+                    "unit": unit,
+                    "context": source.get("context", ""),
+                },
+                "full_source": full,
+            }
+        )
+    return registry
+
+
+def short_plan_schema(source_ids: list[str]) -> dict[str, Any]:
+    result_ids = [f"r{index}" for index in range(SHORT_PLAN_MAX_STEPS)]
+    refs = [*source_ids, *result_ids]
+    return {
+        "type": "object",
+        "properties": {
+            "metric_id": {"type": "string", "enum": sorted(METRIC_CATALOG)},
+            "inputs": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": SHORT_PLAN_MAX_INPUTS,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "role": {"type": "string", "enum": SHORT_ROLES},
+                        "source": {"type": "string", "enum": source_ids},
+                    },
+                    "required": ["role", "source"],
+                    "additionalProperties": False,
+                },
+            },
+            "steps": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": SHORT_PLAN_MAX_STEPS,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "op": {"type": "string", "enum": SHORT_OPERATIONS},
+                        "args": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": SHORT_PLAN_MAX_OPERANDS,
+                            "items": {"type": "string", "enum": refs},
+                        },
+                    },
+                    "required": ["op", "args"],
+                    "additionalProperties": False,
+                },
+            },
+            "outputs": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": SHORT_PLAN_MAX_OUTPUTS,
+                "uniqueItems": True,
+                "items": {"type": "string", "enum": result_ids},
+            },
+        },
+        "required": ["metric_id", "inputs", "steps", "outputs"],
+        "additionalProperties": False,
+    }
+
+
+def short_answer_schema(
+    selected_source_ids: list[str], output_ids: list[str]
+) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "conclusion": {"type": "string", "maxLength": 240},
+            "explanation": {"type": "string", "maxLength": 700},
+            "calculations": {
+                "type": "array",
+                "maxItems": SHORT_PLAN_MAX_STEPS,
+                "items": {"type": "string", "maxLength": 180},
+            },
+            "sources": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": SHORT_PLAN_MAX_INPUTS,
+                "uniqueItems": True,
+                "items": {"type": "string", "enum": selected_source_ids},
+            },
+            "results": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": SHORT_PLAN_MAX_OUTPUTS,
+                "uniqueItems": True,
+                "items": {"type": "string", "enum": output_ids},
+            },
+        },
+        "required": ["conclusion", "explanation", "calculations", "sources", "results"],
+        "additionalProperties": False,
+    }
+
+
+def prepare_short_planner_contract(
+    *, question: dict[str, str], blocks: list[dict[str, Any]], num_ctx: int
+) -> dict[str, Any]:
+    registry = build_short_source_registry(blocks)
+    if not registry:
+        raise PipelineError("Current evidence contained no numeric sources")
+    source_ids = [row["short_id"] for row in registry]
+    schema = short_plan_schema(source_ids)
+    input_payload = {
+        "question": question["question"],
+        "metrics": METRIC_CATALOG,
+        "sources": [row["planner_view"] for row in registry],
+    }
+    input_text = json.dumps(input_payload, ensure_ascii=False, separators=(",", ":"))
+    estimated_chars = sum(
+        len(value)
+        for value in (
+            SHORT_PLAN_INSTRUCTIONS,
+            input_text,
+            json.dumps(schema, ensure_ascii=False, separators=(",", ":")),
+        )
+    )
+    estimated_prompt_tokens = math.ceil(
+        estimated_chars / PROMPT_TOKEN_ESTIMATE_CHARS_PER_TOKEN
+    )
+    longest_source = max(source_ids, key=len)
+    longest_role = max(SHORT_ROLES, key=len)
+    longest_operation = max(SHORT_OPERATIONS, key=len)
+    maximum_plan = {
+        "metric_id": max(METRIC_CATALOG, key=len),
+        "inputs": [
+            {"role": longest_role, "source": longest_source}
+            for _ in range(SHORT_PLAN_MAX_INPUTS)
+        ],
+        "steps": [
+            {
+                "op": longest_operation,
+                "args": [f"r{max(0, index - 1)}"] * SHORT_PLAN_MAX_OPERANDS,
+            }
+            for index in range(SHORT_PLAN_MAX_STEPS)
+        ],
+        "outputs": [f"r{index}" for index in range(SHORT_PLAN_MAX_OUTPUTS)],
+    }
+    maximum_plan_chars = len(
+        json.dumps(maximum_plan, ensure_ascii=False, separators=(",", ":"))
+    )
+    maximum_plan_token_estimate = math.ceil(
+        maximum_plan_chars / PROMPT_TOKEN_ESTIMATE_CHARS_PER_TOKEN
+    )
+    estimate = {
+        "method": "ceil((instruction+input+schema UTF-8 character count)/3); tokenizer-independent conservative estimate",
+        "estimated_prompt_tokens": estimated_prompt_tokens,
+        "planner_output_budget_tokens": SHORT_PLANNER_MAX_OUTPUT_TOKENS,
+        "safety_reserve_tokens": PROMPT_TOKEN_SAFETY_RESERVE,
+        "num_ctx": num_ctx,
+        "maximum_plan_json_chars": maximum_plan_chars,
+        "maximum_plan_token_estimate": maximum_plan_token_estimate,
+        "maximum_plan_fits_output_budget": maximum_plan_token_estimate
+        <= SHORT_PLANNER_MAX_OUTPUT_TOKENS,
+        "fits": estimated_prompt_tokens
+        + SHORT_PLANNER_MAX_OUTPUT_TOKENS
+        + PROMPT_TOKEN_SAFETY_RESERVE
+        <= num_ctx,
+    }
+    if not estimate["fits"] or not estimate["maximum_plan_fits_output_budget"]:
+        raise PipelineError(
+            "Short planner prompt does not leave the frozen output and safety reserve"
+        )
+    return {
+        "registry": registry,
+        "schema": schema,
+        "input_text": input_text,
+        "token_estimate": estimate,
+        "candidate_count": len(registry),
+        "candidate_reduction": "none; every current-page numeric source is retained",
+    }
+
+
+def execute_short_plan(
+    plan: dict[str, Any], registry: list[dict[str, Any]]
+) -> dict[str, Any]:
+    if set(plan) != {"metric_id", "inputs", "steps", "outputs"}:
+        raise PipelineError("Short planner keys did not match the contract")
+    if plan.get("metric_id") not in METRIC_CATALOG:
+        raise PipelineError("Unknown metric definition")
+    inputs = plan.get("inputs")
+    steps = plan.get("steps")
+    outputs = plan.get("outputs")
+    if (
+        not isinstance(inputs, list)
+        or not 1 <= len(inputs) <= SHORT_PLAN_MAX_INPUTS
+        or not isinstance(steps, list)
+        or not 1 <= len(steps) <= SHORT_PLAN_MAX_STEPS
+        or not isinstance(outputs, list)
+        or not 1 <= len(outputs) <= SHORT_PLAN_MAX_OUTPUTS
+    ):
+        raise PipelineError("Short planner array bounds were violated")
+    registry_map = {row["short_id"]: row for row in registry}
+    nodes: dict[str, _Node] = {}
+    selected = []
+    for item in inputs:
+        if not isinstance(item, dict) or set(item) != {"role", "source"}:
+            raise PipelineError("Short planner input shape is invalid")
+        source_id = item["source"]
+        if source_id not in registry_map or item["role"] not in SHORT_ROLES:
+            raise PipelineError("Short planner selected an unknown source or role")
+        if source_id not in nodes:
+            source = registry_map[source_id]
+            nodes[source_id] = _Node(Decimal(source["full_source"]["value"]), source_id)
+        selected.append({**registry_map[source_id], "role": item["role"]})
+    executed = []
+    for index, step in enumerate(steps):
+        result_id = f"r{index}"
+        if not isinstance(step, dict) or set(step) != {"op", "args"}:
+            raise PipelineError("Short planner step shape is invalid")
+        operation = step["op"]
+        refs = step["args"]
+        if (
+            operation not in SHORT_OPERATIONS
+            or not isinstance(refs, list)
+            or not 1 <= len(refs) <= SHORT_PLAN_MAX_OPERANDS
+            or not all(isinstance(ref, str) and ref in nodes for ref in refs)
+        ):
+            raise PipelineError(
+                "Short planner step has an invalid operation, reference, or forward/cyclic reference"
+            )
+        try:
+            result = _execute(operation, [(ref, nodes[ref]) for ref in refs])
+        except (DivisionByZero, InvalidOperation, ZeroDivisionError) as error:
+            raise PipelineError("Calculator arithmetic failed") from error
+        nodes[result_id] = result
+        executed.append(
+            {
+                "result_id": result_id,
+                "operation": operation,
+                "operand_refs": refs,
+                "operands": [str(nodes[ref].value) for ref in refs],
+                "result": str(result.value),
+                "selected_ref": result.selected_ref,
+            }
+        )
+    if (
+        not all(isinstance(ref, str) and ref in nodes and ref.startswith("r") for ref in outputs)
+        or len(outputs) != len(set(outputs))
+    ):
+        raise PipelineError("Short planner output reference is invalid")
+    return {
+        "pipeline_version": SHORT_CALCULATOR_PIPELINE_VERSION,
+        "metric_definition_id": plan["metric_id"],
+        "catalog_definition": METRIC_CATALOG[plan["metric_id"]],
+        "selected_sources": selected,
+        "steps": executed,
+        "outputs": [
+            {"result_id": ref, "value": str(nodes[ref].value), "selected_ref": nodes[ref].selected_ref}
+            for ref in outputs
+        ],
+    }
+
+
+def run_short_calculator_qa(
+    *,
+    question: dict[str, str],
+    blocks: list[dict[str, Any]],
+    generator: StructuredGenerator,
+    num_ctx: int,
+) -> dict[str, Any]:
+    trace: dict[str, Any] = {
+        "planner_call": "NOT_STARTED",
+        "format_validation": "NOT_STARTED",
+        "reference_validation": "NOT_STARTED",
+        "arithmetic_execution": "NOT_STARTED",
+        "answerer_call": "NOT_STARTED",
+        "answer_contract_validation": "NOT_STARTED",
+    }
+    prepared = prepare_short_planner_contract(
+        question=question, blocks=blocks, num_ctx=num_ctx
+    )
+    try:
+        plan_generation = generator.generate_structured(
+            stage="calculator_short_plan",
+            instructions=SHORT_PLAN_INSTRUCTIONS,
+            input_text=prepared["input_text"],
+            max_output_tokens=SHORT_PLANNER_MAX_OUTPUT_TOKENS,
+            response_schema=prepared["schema"],
+        )
+        trace["planner_call"] = "COMPLETED"
+        plan = _json_object(
+            plan_generation.text, {"metric_id", "inputs", "steps", "outputs"}
+        )
+        trace["format_validation"] = "PASSED"
+        try:
+            calculation = execute_short_plan(plan, prepared["registry"])
+        except PipelineError as error:
+            if "arithmetic failed" in str(error).lower():
+                trace["reference_validation"] = "PASSED"
+                trace["arithmetic_execution"] = "FAILED"
+            else:
+                trace["reference_validation"] = "FAILED"
+            raise
+        trace["reference_validation"] = "PASSED"
+        trace["arithmetic_execution"] = "PASSED"
+        selected_ids = list(
+            dict.fromkeys(row["short_id"] for row in calculation["selected_sources"])
+        )
+        output_ids = [row["result_id"] for row in calculation["outputs"]]
+        answer_schema = short_answer_schema(selected_ids, output_ids)
+        answer_input = json.dumps(
+            {
+                "question": question["question"],
+                "metric_id": calculation["metric_definition_id"],
+                "metric_definition": calculation["catalog_definition"],
+                "selected_sources": [
+                    {
+                        **row["planner_view"],
+                        "role": row["role"],
+                    }
+                    for row in calculation["selected_sources"]
+                ],
+                "program_steps": calculation["steps"],
+                "program_outputs": calculation["outputs"],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        answer_generation = generator.generate_structured(
+            stage="calculator_short_answer",
+            instructions=SHORT_ANSWER_INSTRUCTIONS,
+            input_text=answer_input,
+            max_output_tokens=SHORT_ANSWER_MAX_OUTPUT_TOKENS,
+            response_schema=answer_schema,
+        )
+        trace["answerer_call"] = "COMPLETED"
+        answer = _json_object(
+            answer_generation.text,
+            {"conclusion", "explanation", "calculations", "sources", "results"},
+        )
+        if (
+            not answer["sources"]
+            or set(answer["sources"]) - set(selected_ids)
+            or not answer["results"]
+            or set(answer["results"]) - set(output_ids)
+        ):
+            raise PipelineError("Short answer cited unavailable sources or results")
+        trace["answer_contract_validation"] = "PASSED"
+    except Exception as error:
+        if trace["planner_call"] == "NOT_STARTED" and getattr(
+            generator, "call_count", 0
+        ):
+            trace["planner_call"] = "FAILED"
+        elif trace["format_validation"] == "NOT_STARTED" and trace["planner_call"] == "COMPLETED":
+            trace["format_validation"] = "FAILED"
+        elif trace["reference_validation"] == "NOT_STARTED" and trace["format_validation"] == "PASSED":
+            trace["reference_validation"] = "FAILED"
+        elif trace["answerer_call"] == "NOT_STARTED" and trace["arithmetic_execution"] == "PASSED":
+            trace["answerer_call"] = "FAILED"
+        elif trace["answer_contract_validation"] == "NOT_STARTED" and trace["answerer_call"] == "COMPLETED":
+            trace["answer_contract_validation"] = "FAILED"
+        raise ShortCalculatorError(str(error), trace) from error
+    source_to_original = {
+        row["short_id"]: row["original_source_id"] for row in prepared["registry"]
+    }
+    return {
+        "question_id": question["question_id"],
+        "pipeline_version": SHORT_CALCULATOR_PIPELINE_VERSION,
+        "candidate_count": prepared["candidate_count"],
+        "candidate_reduction": prepared["candidate_reduction"],
+        "token_estimate": prepared["token_estimate"],
+        "source_registry": prepared["registry"],
+        "short_to_original_source_id": source_to_original,
+        "plan": plan,
+        "calculation": calculation,
+        "answer": answer,
+        "answer_text": "\n".join(
+            [answer["conclusion"], answer["explanation"], *answer["calculations"]]
+        ).strip(),
+        "stage_status": trace,
+        "prompt_versions": {
+            "planner": SHORT_PLAN_PROMPT_VERSION,
+            "answerer": SHORT_ANSWER_PROMPT_VERSION,
+        },
+        "call_usage": {
+            "planner": plan_generation.usage,
+            "answerer": answer_generation.usage,
+        },
+        "dependency_edges": [
+            *[
+                {
+                    "from": source_to_original[ref],
+                    "via_short_id": ref,
+                    "to": step["result_id"],
+                    "kind": "current_source_calculator_operand",
+                }
+                for step in calculation["steps"]
+                for ref in step["operand_refs"]
+                if ref.startswith("s")
+            ],
+            *[
+                {"from": ref, "to": step["result_id"], "kind": "calculator_result_operand"}
+                for step in calculation["steps"]
+                for ref in step["operand_refs"]
+                if ref.startswith("r")
+            ],
+            *[
+                {
+                    "from": result_id,
+                    "to": f"answer:{question['question_id']}",
+                    "kind": "answer_declared_program_result",
+                }
+                for result_id in answer["results"]
             ],
         ],
     }

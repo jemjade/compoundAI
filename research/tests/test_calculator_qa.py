@@ -5,9 +5,16 @@ from typing import ClassVar
 import pytest
 
 from research.budgeted_ollama import BudgetedOllamaGenerator
-from research.calculator_qa import execute_plan, extract_numeric_sources
+from research.calculator_qa import (
+    build_short_source_registry,
+    execute_plan,
+    execute_short_plan,
+    extract_numeric_sources,
+    prepare_short_planner_contract,
+    run_short_calculator_qa,
+)
 from research.development_v1_4 import build_amd_repair_state
-from research.pipeline_runner import PipelineError, RunnerConfig
+from research.pipeline_runner import Generation, PipelineError, RunnerConfig
 
 
 def _amd_block() -> list[dict]:
@@ -147,3 +154,121 @@ def test_budget_counts_failed_attempt_before_call(tmp_path: Path):
             max_output_tokens=1,
             response_schema={},
         )
+
+
+def test_short_registry_keeps_full_provenance_outside_compact_prompt():
+    blocks = _amd_block()
+    blocks[0]["cells"][2]["bbox"] = {"x1": 1, "y1": 2, "x2": 3, "y2": 4}
+    question = {
+        "question_id": "hidden-id",
+        "document_id": "hidden-document",
+        "question": "Calculate a ratio from the evidence.",
+    }
+    prepared = prepare_short_planner_contract(
+        question=question, blocks=blocks, num_ctx=8192
+    )
+    assert prepared["candidate_reduction"].startswith("none")
+    assert "hidden-id" not in prepared["input_text"]
+    assert "hidden-document" not in prepared["input_text"]
+    assert "bbox" not in prepared["input_text"]
+    cash = next(
+        row
+        for row in prepared["registry"]
+        if row["full_source"].get("cell_id") == "cash"
+    )
+    assert cash["short_id"].startswith("s")
+    assert cash["original_source_id"] == cash["full_source"]["source_id"]
+    assert cash["full_source"]["bbox"] == {"x1": 1, "y1": 2, "x2": 3, "y2": 4}
+    assert prepared["token_estimate"]["fits"] is True
+    assert prepared["token_estimate"]["maximum_plan_fits_output_budget"] is True
+
+
+def test_short_executor_uses_current_sources_and_rejects_forward_reference():
+    registry = build_short_source_registry(_amd_block())
+    cash = next(row["short_id"] for row in registry if row["full_source"].get("cell_id") == "cash")
+    receivable = next(
+        row["short_id"]
+        for row in registry
+        if row["full_source"].get("cell_id") == "ar"
+    )
+    plan = {
+        "metric_id": "quick_ratio_liquid_components_v1",
+        "inputs": [
+            {"role": "component", "source": cash},
+            {"role": "component", "source": receivable},
+        ],
+        "steps": [{"op": "add", "args": [cash, receivable]}],
+        "outputs": ["r0"],
+    }
+    result = execute_short_plan(plan, registry)
+    assert result["steps"][0]["operands"] == ["4835", "4126"]
+    assert result["steps"][0]["result"] == "8961"
+    plan["steps"][0]["args"] = ["r0"]
+    with pytest.raises(PipelineError, match="forward/cyclic"):
+        execute_short_plan(plan, registry)
+
+
+def test_short_pipeline_records_source_operation_result_answer_chain():
+    blocks = _amd_block()
+    registry = build_short_source_registry(blocks)
+    cash = next(row["short_id"] for row in registry if row["full_source"].get("cell_id") == "cash")
+    receivable = next(
+        row["short_id"]
+        for row in registry
+        if row["full_source"].get("cell_id") == "ar"
+    )
+    outputs = iter(
+        [
+            {
+                "metric_id": "quick_ratio_liquid_components_v1",
+                "inputs": [
+                    {"role": "component", "source": cash},
+                    {"role": "component", "source": receivable},
+                ],
+                "steps": [{"op": "add", "args": [cash, receivable]}],
+                "outputs": ["r0"],
+            },
+            {
+                "conclusion": "The calculated total is 8,961.",
+                "explanation": "The program added the two current sources.",
+                "calculations": [f"r0 = {cash} + {receivable} = 8961"],
+                "sources": [cash, receivable],
+                "results": ["r0"],
+            },
+        ]
+    )
+
+    class FakeGenerator:
+        call_count = 0
+
+        def generate_structured(self, **_kwargs):
+            self.call_count += 1
+            value = next(outputs)
+            return Generation(
+                text=json.dumps(value),
+                response_id=f"fake-{self.call_count}",
+                model="fake",
+                usage={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+                status="completed",
+            )
+
+    result = run_short_calculator_qa(
+        question={
+            "question_id": "q",
+            "document_id": "AMD",
+            "question": "Add the two values.",
+        },
+        blocks=blocks,
+        generator=FakeGenerator(),
+        num_ctx=8192,
+    )
+    assert result["stage_status"] == {
+        "planner_call": "COMPLETED",
+        "format_validation": "PASSED",
+        "reference_validation": "PASSED",
+        "arithmetic_execution": "PASSED",
+        "answerer_call": "COMPLETED",
+        "answer_contract_validation": "PASSED",
+    }
+    assert any(edge["kind"] == "current_source_calculator_operand" for edge in result["dependency_edges"])
+    assert any(edge["kind"] == "answer_declared_program_result" for edge in result["dependency_edges"])

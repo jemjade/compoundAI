@@ -19,17 +19,25 @@ class BudgetedOllamaGenerator:
     execution_mode = "live_local_model_budgeted"
     sdk = "ollama-native-http"
 
-    def __init__(self, config: RunnerConfig, ledger_dir: Path, hard_limit: int) -> None:
+    def __init__(
+        self,
+        config: RunnerConfig,
+        ledger_dir: Path,
+        hard_limit: int,
+        *,
+        initial_call_count: int = 0,
+    ) -> None:
         if config.provider != "ollama_generate" or config.max_retries != 0:
             raise ValueError(
-                "The v1.4 budget ledger requires local Ollama with zero retries"
+                "The research budget ledger requires local Ollama with zero retries"
             )
-        if hard_limit < 1:
-            raise ValueError("hard_limit must be positive")
+        if hard_limit < 1 or not 0 <= initial_call_count < hard_limit:
+            raise ValueError("hard_limit and initial_call_count leave no call budget")
         self.config = config
         self.ledger_dir = ledger_dir
         self.hard_limit = hard_limit
-        self.call_count = 0
+        self.call_count = initial_call_count
+        self.initial_call_count = initial_call_count
         self.adapter = OllamaGenerateAdapter(config)
         self.provider_runtime = self.adapter.provider_runtime
         self.sdk_version = self.adapter.sdk_version
@@ -51,6 +59,7 @@ class BudgetedOllamaGenerator:
         base = {
             "schema_version": 1,
             "call_index": self.call_count,
+            "phase_initial_call_count": getattr(self, "initial_call_count", 0),
             "hard_limit": self.hard_limit,
             "stage": stage,
             "instructions": instructions,
