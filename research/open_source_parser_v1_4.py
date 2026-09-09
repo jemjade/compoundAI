@@ -134,25 +134,10 @@ async def _run_docling(
 
 
 async def _run_paddle(
-    *, source: Path, document_id: str, page: int, output: Path, cache: Path
+    *, source: Path, document_id: str, page: int, output: Path, adapter: Any
 ) -> dict[str, Any]:
-    from app.adapters.parsers.paddle_structure import (
-        PPStructureRuntime,
-        PPStructureV3Adapter,
-    )
-    from app.core.config import Settings
-
     input_path = output / "inputs" / f"{document_id}-p{page}.pdf"
     _split_page(source, page, input_path)
-    settings = Settings(
-        paddleocr_enabled=True,
-        paddleocr_device="cpu",
-        paddleocr_max_concurrency=1,
-        paddleocr_model_cache_dir=cache,
-    )
-    runtime = PPStructureRuntime(settings)
-    connector = SimpleNamespace(name="pp_structure_v3", model_version="3.7.0")
-    adapter = PPStructureV3Adapter(connector, settings=settings, runtime=runtime)
     result = await adapter.parse(input_path, output, {})
     run_id = f"pp-structure-v3-v1_4-{uuid4()}"
     canonical = await adapter.normalize(result, document_id, run_id)
@@ -202,6 +187,25 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "failures": [],
     }
     write_json(args.output / "manifest.json", manifest)
+    paddle_adapter: Any = None
+    if args.parser == "pp-structure-v3":
+        from app.adapters.parsers.paddle_structure import (
+            PPStructureRuntime,
+            PPStructureV3Adapter,
+        )
+        from app.core.config import Settings
+
+        settings = Settings(
+            paddleocr_enabled=True,
+            paddleocr_device="cpu",
+            paddleocr_max_concurrency=1,
+            paddleocr_model_cache_dir=args.paddle_cache,
+        )
+        runtime = PPStructureRuntime(settings)
+        connector = SimpleNamespace(name="pp_structure_v3", model_version="3.7.0")
+        paddle_adapter = PPStructureV3Adapter(
+            connector, settings=settings, runtime=runtime
+        )
     expected = {
         row["document_id"]: (row["pdf_sha256"], row["pages"])
         for row in spec["source_pages"]
@@ -226,7 +230,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         document_id=document_id,
                         page=page,
                         output=args.output,
-                        cache=args.paddle_cache,
+                        adapter=paddle_adapter,
                     )
                 manifest["results"].append(row)
             except Exception as error:  # noqa: BLE001 - preserve each actual parser failure
