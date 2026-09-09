@@ -73,6 +73,16 @@ class _InvalidResult:
         return {}
 
 
+class _MarkdownFailureResult(_Result):
+    @property
+    def markdown(self) -> dict[str, str]:
+        raise KeyError("page_continuation_flags")
+
+    @markdown.setter
+    def markdown(self, _value: object) -> None:
+        pass
+
+
 class _Pipeline:
     def __init__(
         self,
@@ -180,8 +190,7 @@ async def test_adapter_is_lazy_reuses_pipeline_and_normalizes(tmp_path: Path) ->
     assert canonical.pages[0].blocks[1].cells[0].text == "A"
     assert canonical.pages[0].blocks[1].cells[0].bbox is not None
     assert (
-        canonical.pages[0].blocks[1].cells[0].attributes["coordinate_alignment_verified"]
-        is False
+        canonical.pages[0].blocks[1].cells[0].attributes["coordinate_alignment_verified"] is False
     )
     assert canonical.pages[0].blocks[0].bbox is not None
 
@@ -332,6 +341,20 @@ async def test_result_conversion_failure_has_stable_code(tmp_path: Path) -> None
         await adapter.parse(_pdf(tmp_path), tmp_path, {})
 
     assert caught.value.code == "RESULT_SERIALIZATION_FAILED"
+
+
+async def test_optional_markdown_failure_preserves_json_result(tmp_path: Path) -> None:
+    settings = _settings()
+    runtime = PPStructureRuntime(
+        settings,
+        pipeline_factory=lambda **_: _Pipeline(results=[_MarkdownFailureResult()]),
+    )
+    adapter = PPStructureV3Adapter(_connector(), settings=settings, runtime=runtime)
+
+    result = await adapter.parse(_pdf(tmp_path), tmp_path, {})
+
+    assert result.raw_data["content"]["pages"][0]["raw"]["res"]["width"] == 100
+    assert result.raw_data["warnings"] == ["page 1: Markdown result was unavailable (KeyError)"]
 
 
 def test_json_safe_handles_non_standard_values(tmp_path: Path) -> None:

@@ -362,7 +362,13 @@ class PPStructureRuntime:
                         )
                     try:
                         markdown_info = _result_markdown(result)
-                    except (AttributeError, TypeError, ValueError, ModuleNotFoundError) as exc:
+                    except (
+                        AttributeError,
+                        KeyError,
+                        TypeError,
+                        ValueError,
+                        ModuleNotFoundError,
+                    ) as exc:
                         # JSON is the research/source-of-truth artifact. Optional Markdown
                         # construction can require document-export extras (for example python-docx)
                         # and must not discard an otherwise usable parser result.
@@ -386,7 +392,13 @@ class PPStructureRuntime:
                     merged_markdown = pipeline.concatenate_markdown_pages(markdown_infos)
                     if not isinstance(merged_markdown, str):
                         raise TypeError
-                except (AttributeError, TypeError, ValueError, ModuleNotFoundError):
+                except (
+                    AttributeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                    ModuleNotFoundError,
+                ):
                     warnings.append("PaddleOCR Markdown page merge fallback was used")
                     merged_markdown = "\n\n".join(
                         page["markdown"] for page in page_results if page["markdown"]
