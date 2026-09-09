@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "spec_id": "open-source-parser-calculator-development-diagnostic-v1.4",
+  "status": "FROZEN_DEVELOPMENT_DIAGNOSTIC",
+  "frozen_before_comparison_run": true,
+  "parent_spec_id": "multi-document-development-feasibility-v1.3",
+  "change_reason": "v1.3 showed arithmetic, metric-selection, evidence-representation, and retrieval failures. v1.4 holds the seven development questions and local model fixed while connecting actual Docling output and a separately versioned arithmetic-tool QA pipeline. Synap is not a dependency of this research path.",
+  "scope": {
+    "role": "development_oracle_page_diagnostic_only",
+    "documents": ["AMCOR_2023_10K", "BESTBUY_2023_10K", "AMD_2022_10K"],
+    "question_count": 7,
+    "primary_question_count": 6,
+    "primary_exclusion": "financebench_id_00685 remains in all outputs but is excluded only from the primary overall-task denominator because its historical wording and benchmark explanation remain misaligned",
+    "retrieval": "excluded; every condition receives the frozen source page for the question",
+    "claim_boundary": "controlled development feasibility evidence; not full RAG performance, independent evaluation, natural parser-error frequency, human repair success, or policy superiority",
+    "prohibited": ["Synap runtime dependency", "Pfizer/PepsiCo/AES inspection", "MinerU", "new VLM", "adaptive prompt tuning", "large policy comparison"]
+  },
+  "source_pages": [
+    {"document_id": "AMCOR_2023_10K", "pages": [50, 52], "pdf_sha256": "84d7a0291a12f4e68352750dccda3754c78eefdf06e0b5462046357a1ed53332"},
+    {"document_id": "BESTBUY_2023_10K", "pages": [40, 42], "pdf_sha256": "7ca465d31a08be29e8c08d756644d33d818c7254a1215720f265227005cda696"},
+    {"document_id": "AMD_2022_10K", "pages": [12, 48, 56], "pdf_sha256": "a3bd74088fae0ad4aa03d04998a1f4c64fd0b3c693841601b0ac49b46cf5c1f4"}
+  ],
+  "questions": [
+    {"question_id": "financebench_id_00799", "document_id": "AMCOR_2023_10K", "page": 52, "task_type": "calculation_and_comparison", "gold_status": "SOURCE_VERIFIED", "accepted_conclusion": "improved slightly", "material_values": {"FY2023": 0.6914655943, "FY2022": 0.6690182246, "relative_change_percent": 3.3552702875}},
+    {"question_id": "financebench_id_00684", "document_id": "AMCOR_2023_10K", "page": 50, "task_type": "calculation_and_comparison", "gold_status": "SOURCE_VERIFIED_WITH_PERCENTAGE_POINT_WORDING", "accepted_conclusion": "not improving; declined", "material_values": {"FY2023_percent": 18.5449843474, "FY2022_percent": 19.3894389439, "decline_percentage_points": 0.8444545964}},
+    {"question_id": "financebench_id_00685", "document_id": "BESTBUY_2023_10K", "page": 40, "task_type": "calculation_and_three_period_consistency", "gold_status": "SOURCE_VERIFIED_BUT_REFERENCE_EXPLANATION_INCOMPLETE_FOR_HISTORICAL_WORDING", "accepted_conclusion": "historically consistent", "material_values": {"FY2023_percent": 21.4091321439, "FY2022_percent": 22.4879735708, "FY2021_percent": 22.3710380432}, "primary": false},
+    {"question_id": "financebench_id_01275", "document_id": "BESTBUY_2023_10K", "page": 42, "task_type": "direct_extraction_and_signed_comparison", "gold_status": "SOURCE_VERIFIED", "accepted_conclusion": "operating activities", "material_values_millions": {"operating": 1824, "investing": -962, "financing": -1806}},
+    {"question_id": "financebench_id_00222", "document_id": "AMD_2022_10K", "page": 56, "task_type": "calculation_and_threshold_judgment", "gold_status": "SOURCE_VERIFIED_WITH_NORMATIVE_THRESHOLD_CAVEAT", "accepted_conclusion": "yes under the benchmark greater-than-one convention", "material_values": {"ratio": 1.5674360182}},
+    {"question_id": "financebench_id_00563", "document_id": "AMD_2022_10K", "page": 48, "task_type": "calculation_and_multi_option_comparison", "gold_status": "SOURCE_VERIFIED", "accepted_conclusion": "Data Center", "material_values_percent": {"Data Center": 63.5896047645, "Client": -9.960795702, "Gaming": 21.366149456}},
+    {"question_id": "financebench_id_00757", "document_id": "AMD_2022_10K", "page": 12, "task_type": "direct_extraction", "gold_status": "SOURCE_VERIFIED", "accepted_conclusion": "yes", "material_values": {"one_customer_share_percent": 16}}
+  ],
+  "parser_contract": {
+    "primary": {"name": "Docling", "package_version": "2.126.0", "core_version": "2.95.0", "parse_version": "7.18.0", "pipeline": "standard", "device": "cpu", "ocr": false, "tables": true, "table_mode": "accurate", "image_export_mode": "placeholder", "models_observed_in_preflight": [{"repository": "docling-project/docling-layout-heron", "snapshot": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8"}, {"repository": "docling-project/docling-models", "revision": "v2.3.0", "snapshot": "fc0f2d45e2218ea24bce5045f58a389aed16dc23"}]},
+    "comparison": {"name": "PP-StructureV3", "paddleocr_version": "3.7.0", "paddlepaddle_version": "3.3.1", "paddlex_version_observed": "3.7.2", "device": "cpu", "engine": "paddle", "modules": {"doc_orientation": true, "doc_unwarping": true, "textline_orientation": true, "table": true, "formula": false, "chart": false, "seal": false}, "failure_rule": "preserve initialization/inference/serialization failures and continue Docling"},
+    "text_baselines": ["pypdf 6.10.0 page text", "PyMuPDF 1.28.2 remains a text/word-coordinate comparison, not a layout parser"],
+    "canonical_schema": "1.1 with parser-provided table/cell IDs, row/column indices, spans, coordinates, coordinate origins, and parser flags",
+    "no_invention": "do not synthesize absent labels or coordinates; any row/year/unit association derived from cells is marked as an interpretation"
+  },
+  "qa_conditions": [
+    {"id": "pypdf_llm_v2", "evidence": "pypdf_page_text", "qa": "quantitative_v2", "calls_per_question": 1},
+    {"id": "pypdf_calculator_v1", "evidence": "pypdf_page_text", "qa": "calculator_qa_v1", "calls_per_question": 2},
+    {"id": "docling_llm_v2", "evidence": "docling_canonical_page", "qa": "quantitative_v2", "calls_per_question": 1},
+    {"id": "docling_calculator_v1", "evidence": "docling_canonical_page", "qa": "calculator_qa_v1", "calls_per_question": 2}
+  ],
+  "calculator_contract": {
+    "pipeline_version": "grounded-calculator-qa-v1",
+    "metric_catalog": "generic definitions only: quick ratio, gross margin, percent change, signed-value comparison, direct extraction; kept outside evaluation references",
+    "planner": "one LLM call selects metric definition, current-evidence source IDs, row/period/unit interpretations, and an allowed operation graph",
+    "executor": "Decimal operations identity, add, subtract, multiply, divide, percent, percent_change, compare, and argmax; unknown IDs, cyclic refs, zero division, invalid units, or unsupported operations fail closed",
+    "answerer": "one LLM call receives only the question, validated plan, program result, and selected current-state sources; it must report conclusion, quantitative explanation, calculation, and source IDs",
+    "state_isolation": "source values are extracted anew from each current evidence state; clean/evaluation repair values are never available to the calculator",
+    "failure_dimensions": ["value_selection", "metric_selection", "row_period_unit_selection", "arithmetic", "final_conclusion", "explanation", "evidence"]
+  },
+  "evaluation": {
+    "same_as_v1_3": ["conclusion_correctness", "stated_numeric_accuracy", "required_quantitative_explanation_completeness", "evidence_sufficiency"],
+    "additional_tool_dimensions": ["metric_selection_correctness", "source_value_selection_correctness", "row_period_unit_correctness", "program_arithmetic_status", "answer_uses_program_result"],
+    "failure_rule": "failed, empty, malformed, uncited, unsupported, wrong metric, wrong row/year/unit, or unreviewed results are not correct",
+    "parser_agreement_rule": "agreement is not gold correctness",
+    "aggregation": "report all seven and primary six; never drop parser failures or identical outputs"
+  },
+  "repair_diagnostic": {
+    "eligibility": "only if Docling canonical AMD p56 contains unambiguous cells for 2022 Cash and cash equivalents=4,835 and Accounts receivable, net=4,126",
+    "question_id": "financebench_id_00222",
+    "states": ["damaged_baseline", "damaged_no_op_fresh", "A_only", "B_only", "A_plus_B"],
+    "A": "within the matched 2022 Cash and cash equivalents cell, corrupt 4,835 to 835 then restore only for A states",
+    "B": "within the matched 2022 Accounts receivable, net cell, corrupt 4,126 to 126 then restore only for B states",
+    "alternate_route": "retain total current assets, inventory, prepaid, and every duplicate or alternative source",
+    "freshness": "each state reruns planner, calculator, and answerer; no cached no-op response",
+    "interpretation": "separate parser/calculator effects from verification-repair effects"
+  },
+  "live_call_budget": {
+    "seven_by_four": {"existing_llm": 14, "calculator_planner": 14, "calculator_answerer": 14, "subtotal": 42},
+    "repair_if_eligible": {"states": 5, "planner": 5, "answerer": 5, "subtotal": 10},
+    "expected_max": 52,
+    "hard_max_including_failures_and_retries": 60,
+    "retries": 0,
+    "stop_rule": "do not add prompt variants or calls after observing outputs"
+  },
+  "preservation": {
+    "raw": "append-only ignored research/work directory; save each input, prompt, raw response or failure, parser raw, canonical, calculation trace, source IDs, runtime identity, manifest, and checksums before aggregation",
+    "tracked": "spec, code, compact result table, report, and raw preservation manifest/checksums",
+    "backup": "persistent project path is primary; independent physical backup must be reported as verified or unverified"
+  },
+  "policy_gate": {
+    "status": "NOT_EVALUATED_IN_V1_4",
+    "question": "parser disagreement and calculator dependency edges may become observable features, but policy comparison remains blocked unless they distinguish error from normal candidates without gold and provide varied downstream overlap"
+  }
+}

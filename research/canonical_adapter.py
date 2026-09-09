@@ -67,6 +67,9 @@ def canonical_to_blocks(canonical: dict[str, Any]) -> list[dict[str, Any]]:
                     "parser_version": canonical.get("parser_version"),
                     "page_width": page.get("width"),
                     "page_height": page.get("height"),
+                    "html": block.get("html"),
+                    "cells": block.get("cells", []),
+                    "attributes": block.get("attributes", {}),
                 }
             )
     ids = [block["block_id"] for block in blocks]

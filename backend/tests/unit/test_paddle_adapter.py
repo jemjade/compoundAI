@@ -51,7 +51,12 @@ class _Result:
                         "block_order": 1,
                     },
                 ],
-                "table_res_list": [{"pred_html": "<table><tr><td>A</td></tr></table>"}],
+                "table_res_list": [
+                    {
+                        "pred_html": "<table><tr><td>A</td></tr></table>",
+                        "cell_box_list": [[1, 50, 20, 70]],
+                    }
+                ],
                 "array": _Array(),
             }
         }
@@ -172,6 +177,12 @@ async def test_adapter_is_lazy_reuses_pipeline_and_normalizes(tmp_path: Path) ->
     assert canonical.pages[0].blocks[0].type == "title"
     assert canonical.pages[0].blocks[1].type == "table"
     assert canonical.pages[0].blocks[1].html == "<table><tr><td>A</td></tr></table>"
+    assert canonical.pages[0].blocks[1].cells[0].text == "A"
+    assert canonical.pages[0].blocks[1].cells[0].bbox is not None
+    assert (
+        canonical.pages[0].blocks[1].cells[0].attributes["coordinate_alignment_verified"]
+        is False
+    )
     assert canonical.pages[0].blocks[0].bbox is not None
 
 

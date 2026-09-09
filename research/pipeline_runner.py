@@ -512,6 +512,28 @@ class OllamaGenerateAdapter:
         input_text: str,
         max_output_tokens: int,
     ) -> Generation:
+        response_schema = (
+            _qa_response_schema(input_text, self.config.qa_output_contract)
+            if stage == "qa"
+            else None
+        )
+        return self.generate_with_schema(
+            stage=stage,
+            instructions=instructions,
+            input_text=input_text,
+            max_output_tokens=max_output_tokens,
+            response_schema=response_schema,
+        )
+
+    def generate_with_schema(
+        self,
+        *,
+        stage: str,
+        instructions: str,
+        input_text: str,
+        max_output_tokens: int,
+        response_schema: dict[str, Any] | None,
+    ) -> Generation:
         options: dict[str, Any] = {"num_predict": max_output_tokens}
         if self.config.ollama_num_ctx is not None:
             options["num_ctx"] = self.config.ollama_num_ctx
@@ -528,10 +550,8 @@ class OllamaGenerateAdapter:
         }
         if self.config.ollama_keep_alive is not None:
             payload["keep_alive"] = self.config.ollama_keep_alive
-        if stage == "qa":
-            payload["format"] = _qa_response_schema(
-                input_text, self.config.qa_output_contract
-            )
+        if response_schema is not None:
+            payload["format"] = response_schema
 
         response: dict[str, Any] | None = None
         last_error: Exception | None = None

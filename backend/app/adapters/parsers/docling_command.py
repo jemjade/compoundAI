@@ -2,6 +2,7 @@
 
 from app.adapters.parsers.base import ParserExecutionResult
 from app.adapters.parsers.generic_command import GenericCommandParserAdapter
+from app.normalizers.docling_normalizer import normalize_docling_document
 from app.normalizers.text_normalizer import text_to_canonical
 from app.schemas.canonical_document import CanonicalDocument
 
@@ -42,6 +43,16 @@ class DoclingCommandAdapter(GenericCommandParserAdapter):
         metadata = {"transport": "command", "format": "docling"}
         if isinstance(raw, dict):
             metadata["docling_keys"] = sorted(raw.keys())
+            if raw.get("schema_name") == "DoclingDocument":
+                return normalize_docling_document(
+                    raw,
+                    document_id=document_id,
+                    run_id=run_id,
+                    parser_name=self.connector.name,
+                    parser_version=self.connector.model_version,
+                    parser_config=self._last_config,
+                    markdown=execution_result.markdown,
+                )
         return text_to_canonical(
             text=execution_result.text or "",
             markdown=execution_result.markdown,

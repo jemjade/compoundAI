@@ -27,11 +27,14 @@ class BoundingBox(BaseModel):
 
 
 class TableCell(BaseModel):
+    id: str | None = None
     row: int
     column: int
     row_span: int = 1
     column_span: int = 1
     text: str = ""
+    bbox: BoundingBox | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class DocumentBlock(BaseModel):

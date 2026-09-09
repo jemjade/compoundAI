@@ -38,6 +38,9 @@ SAFE_BLOCK_FIELDS = (
     "parser_version",
     "page_width",
     "page_height",
+    "html",
+    "cells",
+    "attributes",
 )
 
 
