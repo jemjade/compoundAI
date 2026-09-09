@@ -150,7 +150,8 @@ def build_amd_repair_state(
         for block in blocks:
             cells = block.get("cells", [])
             for cell in cells:
-                if cell.get("text") != clean_value:
+                cell_text = cell.get("text", "")
+                if not isinstance(cell_text, str) or cell_text.count(clean_value) != 1:
                     continue
                 same_row = [
                     other.get("text", "")
@@ -162,7 +163,7 @@ def build_amd_repair_state(
                     for other in cells
                     if other.get("column") == cell.get("column")
                 ]
-                if row_name in same_row and "2022" in same_col:
+                if row_name in same_row and any("2022" in value for value in same_col):
                     candidates.append((block, cell))
         if len(candidates) != 1:
             raise ValueError(
@@ -172,7 +173,8 @@ def build_amd_repair_state(
     labels: dict[str, Any] = {}
     for label, (_row_name, clean_value, damaged) in definitions.items():
         block, cell = matches[label]
-        cell["text"] = clean_value if label in restored else damaged
+        replacement = clean_value if label in restored else damaged
+        cell["text"] = cell["text"].replace(clean_value, replacement, 1)
         labels[label] = {
             "block_id": block["block_id"],
             "cell_id": cell["id"],
