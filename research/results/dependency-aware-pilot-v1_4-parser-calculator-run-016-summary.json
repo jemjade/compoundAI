@@ -1,0 +1,1497 @@
+{
+  "schema_version": 1,
+  "status": "POSTRUN_SOURCE_AUDITED_DEVELOPMENT_ANALYSIS",
+  "scope": "oracle source-page diagnostic; retrieval excluded",
+  "run_manifest_sha256": "2abd4053c27b938f802fd42bd86b92b89975070906cb98201066433ebda1e171",
+  "records_sha256": "84d1b0692c5d6886951ce8291df4ae97355cbc7e1207e1a9068bed14938b64fc",
+  "judgments_sha256": "c688d04f614831ba24b103b3eb4d3b00edfb199fcc7cea4791ac578f3b6d43ad",
+  "completed_model_calls": 33,
+  "hard_call_limit": 60,
+  "aggregates": {
+    "docling_calculator_v1": {
+      "all_7": {
+        "denominator": 7,
+        "pipeline_completed": 0,
+        "overall_task_correct": 0,
+        "conclusion_correctness": {
+          "MISSING_OR_UNDETERMINED": 7
+        },
+        "stated_numeric_accuracy": {
+          "NOT_APPLICABLE_NO_NUMBERS": 7
+        },
+        "required_explanation_completeness": {
+          "MISSING_OR_INCOMPLETE": 7
+        },
+        "evidence_sufficiency": {
+          "AVAILABLE_BUT_PIPELINE_FAILED": 7
+        },
+        "tool_failure_dimensions": {
+          "metric_selection": {
+            "NOT_EXECUTED_OR_INVALID": 7
+          },
+          "source_value_selection": {
+            "NOT_EXECUTED_OR_INVALID": 7
+          },
+          "row_period_unit_selection": {
+            "NOT_EXECUTED_OR_INVALID": 7
+          },
+          "program_arithmetic": {
+            "NOT_EXECUTED": 7
+          },
+          "answer_uses_program_result": {
+            "NOT_EXECUTED": 7
+          }
+        }
+      },
+      "primary_6": {
+        "denominator": 6,
+        "pipeline_completed": 0,
+        "overall_task_correct": 0,
+        "conclusion_correctness": {
+          "MISSING_OR_UNDETERMINED": 6
+        },
+        "stated_numeric_accuracy": {
+          "NOT_APPLICABLE_NO_NUMBERS": 6
+        },
+        "required_explanation_completeness": {
+          "MISSING_OR_INCOMPLETE": 6
+        },
+        "evidence_sufficiency": {
+          "AVAILABLE_BUT_PIPELINE_FAILED": 6
+        },
+        "tool_failure_dimensions": {
+          "metric_selection": {
+            "NOT_EXECUTED_OR_INVALID": 6
+          },
+          "source_value_selection": {
+            "NOT_EXECUTED_OR_INVALID": 6
+          },
+          "row_period_unit_selection": {
+            "NOT_EXECUTED_OR_INVALID": 6
+          },
+          "program_arithmetic": {
+            "NOT_EXECUTED": 6
+          },
+          "answer_uses_program_result": {
+            "NOT_EXECUTED": 6
+          }
+        }
+      }
+    },
+    "docling_llm_v2": {
+      "all_7": {
+        "denominator": 7,
+        "pipeline_completed": 7,
+        "overall_task_correct": 2,
+        "conclusion_correctness": {
+          "INCORRECT": 4,
+          "MISSING_OR_UNDETERMINED": 1,
+          "CORRECT": 2
+        },
+        "stated_numeric_accuracy": {
+          "INCORRECT_NUMERIC_CLAIM": 3,
+          "ALL_STATED_NUMBERS_CORRECT": 2,
+          "NOT_APPLICABLE_NO_NUMBERS": 2
+        },
+        "required_explanation_completeness": {
+          "PRESENT_BUT_INVALID": 4,
+          "MISSING_OR_INCOMPLETE": 1,
+          "COMPLETE": 1,
+          "NOT_REQUIRED_DIRECT_ANSWER": 1
+        },
+        "evidence_sufficiency": {
+          "AVAILABLE_BUT_OUTPUT_UNSUPPORTED": 5,
+          "AVAILABLE_AND_SUPPORTS_ANSWER": 2
+        },
+        "tool_failure_dimensions": {
+          "metric_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          },
+          "source_value_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          },
+          "row_period_unit_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          },
+          "program_arithmetic": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          },
+          "answer_uses_program_result": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          }
+        }
+      },
+      "primary_6": {
+        "denominator": 6,
+        "pipeline_completed": 6,
+        "overall_task_correct": 2,
+        "conclusion_correctness": {
+          "INCORRECT": 3,
+          "MISSING_OR_UNDETERMINED": 1,
+          "CORRECT": 2
+        },
+        "stated_numeric_accuracy": {
+          "INCORRECT_NUMERIC_CLAIM": 3,
+          "NOT_APPLICABLE_NO_NUMBERS": 2,
+          "ALL_STATED_NUMBERS_CORRECT": 1
+        },
+        "required_explanation_completeness": {
+          "PRESENT_BUT_INVALID": 3,
+          "MISSING_OR_INCOMPLETE": 1,
+          "COMPLETE": 1,
+          "NOT_REQUIRED_DIRECT_ANSWER": 1
+        },
+        "evidence_sufficiency": {
+          "AVAILABLE_BUT_OUTPUT_UNSUPPORTED": 4,
+          "AVAILABLE_AND_SUPPORTS_ANSWER": 2
+        },
+        "tool_failure_dimensions": {
+          "metric_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          },
+          "source_value_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          },
+          "row_period_unit_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          },
+          "program_arithmetic": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          },
+          "answer_uses_program_result": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          }
+        }
+      }
+    },
+    "pypdf_calculator_v1": {
+      "all_7": {
+        "denominator": 7,
+        "pipeline_completed": 0,
+        "overall_task_correct": 0,
+        "conclusion_correctness": {
+          "MISSING_OR_UNDETERMINED": 7
+        },
+        "stated_numeric_accuracy": {
+          "NOT_APPLICABLE_NO_NUMBERS": 7
+        },
+        "required_explanation_completeness": {
+          "MISSING_OR_INCOMPLETE": 7
+        },
+        "evidence_sufficiency": {
+          "AVAILABLE_BUT_PIPELINE_FAILED": 7
+        },
+        "tool_failure_dimensions": {
+          "metric_selection": {
+            "NOT_EXECUTED_OR_INVALID": 7
+          },
+          "source_value_selection": {
+            "NOT_EXECUTED_OR_INVALID": 7
+          },
+          "row_period_unit_selection": {
+            "NOT_EXECUTED_OR_INVALID": 7
+          },
+          "program_arithmetic": {
+            "NOT_EXECUTED": 7
+          },
+          "answer_uses_program_result": {
+            "NOT_EXECUTED": 7
+          }
+        }
+      },
+      "primary_6": {
+        "denominator": 6,
+        "pipeline_completed": 0,
+        "overall_task_correct": 0,
+        "conclusion_correctness": {
+          "MISSING_OR_UNDETERMINED": 6
+        },
+        "stated_numeric_accuracy": {
+          "NOT_APPLICABLE_NO_NUMBERS": 6
+        },
+        "required_explanation_completeness": {
+          "MISSING_OR_INCOMPLETE": 6
+        },
+        "evidence_sufficiency": {
+          "AVAILABLE_BUT_PIPELINE_FAILED": 6
+        },
+        "tool_failure_dimensions": {
+          "metric_selection": {
+            "NOT_EXECUTED_OR_INVALID": 6
+          },
+          "source_value_selection": {
+            "NOT_EXECUTED_OR_INVALID": 6
+          },
+          "row_period_unit_selection": {
+            "NOT_EXECUTED_OR_INVALID": 6
+          },
+          "program_arithmetic": {
+            "NOT_EXECUTED": 6
+          },
+          "answer_uses_program_result": {
+            "NOT_EXECUTED": 6
+          }
+        }
+      }
+    },
+    "pypdf_llm_v2": {
+      "all_7": {
+        "denominator": 7,
+        "pipeline_completed": 7,
+        "overall_task_correct": 2,
+        "conclusion_correctness": {
+          "INCORRECT": 4,
+          "CORRECT": 3
+        },
+        "stated_numeric_accuracy": {
+          "INCORRECT_NUMERIC_CLAIM": 3,
+          "ALL_STATED_NUMBERS_CORRECT": 3,
+          "NOT_APPLICABLE_NO_NUMBERS": 1
+        },
+        "required_explanation_completeness": {
+          "PRESENT_BUT_INVALID": 4,
+          "MISSING_OR_INCOMPLETE": 1,
+          "COMPLETE": 1,
+          "NOT_REQUIRED_DIRECT_ANSWER": 1
+        },
+        "evidence_sufficiency": {
+          "AVAILABLE_BUT_OUTPUT_UNSUPPORTED": 5,
+          "AVAILABLE_AND_SUPPORTS_ANSWER": 2
+        },
+        "tool_failure_dimensions": {
+          "metric_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          },
+          "source_value_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          },
+          "row_period_unit_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          },
+          "program_arithmetic": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          },
+          "answer_uses_program_result": {
+            "NOT_APPLICABLE_LLM_ONLY": 7
+          }
+        }
+      },
+      "primary_6": {
+        "denominator": 6,
+        "pipeline_completed": 6,
+        "overall_task_correct": 2,
+        "conclusion_correctness": {
+          "INCORRECT": 3,
+          "CORRECT": 3
+        },
+        "stated_numeric_accuracy": {
+          "INCORRECT_NUMERIC_CLAIM": 2,
+          "ALL_STATED_NUMBERS_CORRECT": 3,
+          "NOT_APPLICABLE_NO_NUMBERS": 1
+        },
+        "required_explanation_completeness": {
+          "PRESENT_BUT_INVALID": 3,
+          "MISSING_OR_INCOMPLETE": 1,
+          "COMPLETE": 1,
+          "NOT_REQUIRED_DIRECT_ANSWER": 1
+        },
+        "evidence_sufficiency": {
+          "AVAILABLE_BUT_OUTPUT_UNSUPPORTED": 4,
+          "AVAILABLE_AND_SUPPORTS_ANSWER": 2
+        },
+        "tool_failure_dimensions": {
+          "metric_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          },
+          "source_value_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          },
+          "row_period_unit_selection": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          },
+          "program_arithmetic": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          },
+          "answer_uses_program_result": {
+            "NOT_APPLICABLE_LLM_ONLY": 6
+          }
+        }
+      }
+    }
+  },
+  "amd_repair": {
+    "denominator": 5,
+    "pipeline_completed": 0,
+    "overall_task_correct": 0,
+    "conclusion_correctness": {
+      "MISSING_OR_UNDETERMINED": 5
+    },
+    "stated_numeric_accuracy": {
+      "NOT_APPLICABLE_NO_NUMBERS": 5
+    },
+    "required_explanation_completeness": {
+      "MISSING_OR_INCOMPLETE": 5
+    },
+    "evidence_sufficiency": {
+      "AVAILABLE_BUT_PIPELINE_FAILED": 5
+    },
+    "tool_failure_dimensions": {
+      "metric_selection": {
+        "NOT_EXECUTED_OR_INVALID": 5
+      },
+      "source_value_selection": {
+        "NOT_EXECUTED_OR_INVALID": 5
+      },
+      "row_period_unit_selection": {
+        "NOT_EXECUTED_OR_INVALID": 5
+      },
+      "program_arithmetic": {
+        "NOT_EXECUTED": 5
+      },
+      "answer_uses_program_result": {
+        "NOT_EXECUTED": 5
+      }
+    }
+  },
+  "rows": [
+    {
+      "execution_id": "8ad62fa7-0daa-4ef3-8da7-3dc980c77b34",
+      "condition": "pypdf_llm_v2",
+      "question_id": "financebench_id_00799",
+      "document_id": "AMCOR_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "5922576ead3205c38ff1b1ae6335064888b21d8dba0ebb580996202998cefabb",
+      "output_sha256": "00d61ba37d2ae6b2a29d4beb2f62ad2f8d464b1c266abc0b1cca0077ecce9c3f",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "AMCOR's quick ratio has declined between FY2023 and FY2022.\nThe quick ratio is calculated as (current assets - inventory) / current liabilities. In FY2023, the value is ((5,308 + 992 + 1,221) - 1,114) / 4,476 = 0.83, while in FY2022, it is ((5,853 + 1,114 + 1,325) - 192) / 5,103 = 0.93.\n(5,308 + 992 + 1,221) - 1,114\n((5,853 + 1,114 + 1,325) - 192) / 5,103",
+      "structured_output": {
+        "conclusion": "AMCOR's quick ratio has declined between FY2023 and FY2022.",
+        "quantitative_explanation": "The quick ratio is calculated as (current assets - inventory) / current liabilities. In FY2023, the value is ((5,308 + 992 + 1,221) - 1,114) / 4,476 = 0.83, while in FY2022, it is ((5,853 + 1,114 + 1,325) - 192) / 5,103 = 0.93.",
+        "calculations": [
+          "(5,308 + 992 + 1,221) - 1,114",
+          "((5,853 + 1,114 + 1,325) - 192) / 5,103"
+        ],
+        "evidence_chunk_ids": [
+          "chunk:34219c94-91ae-44fa-84e8-b16c63bcfcb9:0:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "AMCOR_2023_10K:p52"
+      ],
+      "qa_contract_violations": [],
+      "pipeline_execution_id": "34219c94-91ae-44fa-84e8-b16c63bcfcb9",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "Quick ratio direction and the stated 0.83/0.93 calculations are wrong."
+    },
+    {
+      "execution_id": "0cf7fa51-1d11-4ee6-83c8-459953498a7e",
+      "condition": "pypdf_llm_v2",
+      "question_id": "financebench_id_00684",
+      "document_id": "AMCOR_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "8693e24aa5a7e80d2b785bb7933adb7a32394ed9decd1863921813d931fa72bb",
+      "output_sha256": "48fd94c2d6b2780fe92931f7b78e7daee44603c63740998641d590fda8bbd59d",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Yes, AMCOR has an improving gross margin profile as of FY2023.\nThe material values used are gross profit and net sales in millions, with the period being the years ended June 30. The unit is millions. The formula to calculate the gross margin is (Gross Profit / Net Sales) * 100%. Substituted values: Gross Profit = $2,725 million, Net Sales = $14,694 million. Calculated Gross Margin = ($2,725 million / $14,694 million) * 100% ≈ 18.6%\n(Gross Profit / Net Sales) * 100%\n($2,725 million / $14,694 million) * 100%",
+      "structured_output": {
+        "conclusion": "Yes, AMCOR has an improving gross margin profile as of FY2023.",
+        "quantitative_explanation": "The material values used are gross profit and net sales in millions, with the period being the years ended June 30. The unit is millions. The formula to calculate the gross margin is (Gross Profit / Net Sales) * 100%. Substituted values: Gross Profit = $2,725 million, Net Sales = $14,694 million. Calculated Gross Margin = ($2,725 million / $14,694 million) * 100% ≈ 18.6%",
+        "calculations": [
+          "(Gross Profit / Net Sales) * 100%",
+          "($2,725 million / $14,694 million) * 100%"
+        ],
+        "evidence_chunk_ids": [
+          "chunk:5190fefb-33ba-4c05-aa82-045253c6edfa:0:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "AMCOR_2023_10K:p50"
+      ],
+      "qa_contract_violations": [],
+      "pipeline_execution_id": "5190fefb-33ba-4c05-aa82-045253c6edfa",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "FY2023 gross margin declined; the answer claims improvement and rounds 18.545% upward to 18.6%."
+    },
+    {
+      "execution_id": "61b683a9-5f08-4d61-a27b-2360387371ae",
+      "condition": "pypdf_llm_v2",
+      "question_id": "financebench_id_00685",
+      "document_id": "BESTBUY_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "0f05075cc23e46b0fce85c8478aaaeca8f45d35af85f1dfb1c7509055e32b9e6",
+      "output_sha256": "4a4337e66245caf92798710f9978e29120d5163b268fd49ec063c4921695d422",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Best Buy's gross margins are not historically consistent, as they have fluctuated more than roughly 2% each year.\nThe material values used are the gross profit and revenue figures from Best Buy's Consolidated Statements of Earnings. The periods are fiscal years ended January 28, 2023, January 29, 2022, and January 30, 2021. The units are in millions.\nGross margin = (Gross profit / Revenue) x 100\n(9,912 / 46,298) x 100 = 21.4%\n(11,640 / 51,761) x 100 = 22.6%\n(10,573 / 47,262) x 100 = 22.3%",
+      "structured_output": {
+        "conclusion": "Best Buy's gross margins are not historically consistent, as they have fluctuated more than roughly 2% each year.",
+        "quantitative_explanation": "The material values used are the gross profit and revenue figures from Best Buy's Consolidated Statements of Earnings. The periods are fiscal years ended January 28, 2023, January 29, 2022, and January 30, 2021. The units are in millions.",
+        "calculations": [
+          "Gross margin = (Gross profit / Revenue) x 100",
+          "(9,912 / 46,298) x 100 = 21.4%",
+          "(11,640 / 51,761) x 100 = 22.6%",
+          "(10,573 / 47,262) x 100 = 22.3%"
+        ],
+        "evidence_chunk_ids": [
+          "chunk:12d4c2e0-c42a-4742-8deb-88d615888b31:0:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "BESTBUY_2023_10K:p40"
+      ],
+      "qa_contract_violations": [],
+      "pipeline_execution_id": "12d4c2e0-c42a-4742-8deb-88d615888b31",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "All three margins are within a roughly two-percentage-point band; 2022 is also misstated as 22.6% rather than about 22.5%."
+    },
+    {
+      "execution_id": "e6ac6b4b-72c5-44ed-b654-06d8179728c9",
+      "condition": "pypdf_llm_v2",
+      "question_id": "financebench_id_01275",
+      "document_id": "BESTBUY_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "f1dcd132450878a3a06fd66aaed27cf8ed32a28d2ba8e3d565da8c5384950a1a",
+      "output_sha256": "4d4a06e8048f6bf53fb5b6274ce419f7dea043b42720977d7e0c0c3481079995",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Investing activities brought in the most cash flow for Best Buy in FY2023.\nThe quantitative explanation is based on the provided financial statements. The total cash used in investing activities was $(962) million, which is a decrease from $(1,372) million in FY2022 and an increase from $(788) million in FY2021.\n(Total cash used in investing activities) = (Additions to property and equipment, net of non-cash capital expenditures) + (Purchases of investments) - (Sales of investments) + (Acquisitions, net of cash acquired) + (Other, net)\n(Total cash used in investing activities) = (-$930 million) + (-$46 million) - ($7 million) + ($0 million) + ($7 million) = -$962 million",
+      "structured_output": {
+        "conclusion": "Investing activities brought in the most cash flow for Best Buy in FY2023.",
+        "quantitative_explanation": "The quantitative explanation is based on the provided financial statements. The total cash used in investing activities was $(962) million, which is a decrease from $(1,372) million in FY2022 and an increase from $(788) million in FY2021.",
+        "calculations": [
+          "(Total cash used in investing activities) = (Additions to property and equipment, net of non-cash capital expenditures) + (Purchases of investments) - (Sales of investments) + (Acquisitions, net of cash acquired) + (Other, net)",
+          "(Total cash used in investing activities) = (-$930 million) + (-$46 million) - ($7 million) + ($0 million) + ($7 million) = -$962 million"
+        ],
+        "evidence_chunk_ids": [
+          "chunk:44c2b68a-76be-470f-a0cf-c36f12d822f2:0:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "BESTBUY_2023_10K:p42"
+      ],
+      "qa_contract_violations": [],
+      "pipeline_execution_id": "44c2b68a-76be-470f-a0cf-c36f12d822f2",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "ALL_STATED_NUMBERS_CORRECT",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "The values identify operating activities as largest, but the conclusion says investing."
+    },
+    {
+      "execution_id": "67ec11d2-af9e-4425-be71-e1eff2e1d048",
+      "condition": "pypdf_llm_v2",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "5d53e7f9327eb6927abe7672579968921f9e9718be8b41e76c396c99d62ed413",
+      "output_sha256": "4d6c94d245e3460a24aaf16a92c23113e3d2dea330569d9dc7d552189abbfed9",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "AMD has a reasonably healthy liquidity profile based on its quick ratio for FY22.\nThe quick ratio is calculated by dividing the sum of cash and cash equivalents, short-term investments, accounts receivable, net, and prepaid expenses and other current assets by total current liabilities. For FY22, AMD's quick ratio is 15,019 / 6,369 = 2.38.\n(4,835 + 1,020 + 4,126 + 1,265) / 6,369",
+      "structured_output": {
+        "conclusion": "AMD has a reasonably healthy liquidity profile based on its quick ratio for FY22.",
+        "quantitative_explanation": "The quick ratio is calculated by dividing the sum of cash and cash equivalents, short-term investments, accounts receivable, net, and prepaid expenses and other current assets by total current liabilities. For FY22, AMD's quick ratio is 15,019 / 6,369 = 2.38.",
+        "calculations": [
+          "(4,835 + 1,020 + 4,126 + 1,265) / 6,369"
+        ],
+        "evidence_chunk_ids": [
+          "chunk:7de79912-0f9e-4da3-ae70-32723d1f3df1:0:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "AMD_2022_10K:p56"
+      ],
+      "qa_contract_violations": [],
+      "pipeline_execution_id": "7de79912-0f9e-4da3-ae70-32723d1f3df1",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "ALL_STATED_NUMBERS_CORRECT",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "The healthy conclusion and source inputs are supportable, but no ratio result or substituted final calculation is reported."
+    },
+    {
+      "execution_id": "fca899c7-28b3-4e81-90ae-a15e63250365",
+      "condition": "pypdf_llm_v2",
+      "question_id": "financebench_id_00563",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "db2d8318fa7cf21202319370b670d5515b3014d4db11235a7d296629de5b4d1d",
+      "output_sha256": "2d7d50a4979138c8defd721e38b37056d3391136bfce275f067e110a16abc885",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Data Center\nThe sales proportionally increased the most from FY21 to FY22 in the Data Center segment, with a 64% increase in net revenue.",
+      "structured_output": {
+        "conclusion": "Data Center",
+        "quantitative_explanation": "The sales proportionally increased the most from FY21 to FY22 in the Data Center segment, with a 64% increase in net revenue.",
+        "calculations": [],
+        "evidence_chunk_ids": [
+          "chunk:00d1d715-1030-488b-a752-d50526efaaf6:0:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "AMD_2022_10K:p48"
+      ],
+      "qa_contract_violations": [
+        "calculations"
+      ],
+      "pipeline_execution_id": "00d1d715-1030-488b-a752-d50526efaaf6",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "ALL_STATED_NUMBERS_CORRECT",
+      "required_explanation_completeness": "COMPLETE",
+      "evidence_sufficiency": "AVAILABLE_AND_SUPPORTS_ANSWER",
+      "overall_task_correct": true,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "Data Center and the roughly 64% increase are supported."
+    },
+    {
+      "execution_id": "8b626e06-2274-4da9-84e2-52228474bf18",
+      "condition": "pypdf_llm_v2",
+      "question_id": "financebench_id_00757",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "04308243c80865003cdbcbc7fe99f37f847e82635bccfa64c55a5604464f986a",
+      "output_sha256": "6cfb3b472792c1094e2cea709fb102b144a4f6ef72970f4bba4ce8a0e3c3a3b3",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Yes, AMD reported customer concentration in FY22.",
+      "structured_output": {
+        "conclusion": "Yes, AMD reported customer concentration in FY22.",
+        "quantitative_explanation": "",
+        "calculations": [],
+        "evidence_chunk_ids": [
+          "chunk:af9c3f7d-1339-406d-9fcb-7605556f5dd0:0:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "AMD_2022_10K:p12"
+      ],
+      "qa_contract_violations": [
+        "quantitative_explanation",
+        "calculations"
+      ],
+      "pipeline_execution_id": "af9c3f7d-1339-406d-9fcb-7605556f5dd0",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "NOT_REQUIRED_DIRECT_ANSWER",
+      "evidence_sufficiency": "AVAILABLE_AND_SUPPORTS_ANSWER",
+      "overall_task_correct": true,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "The filing directly states customer concentration and the yes answer is sufficient."
+    },
+    {
+      "execution_id": "468c8841-ace6-48ab-a5d4-670e359e6ace",
+      "condition": "pypdf_calculator_v1",
+      "question_id": "financebench_id_00799",
+      "document_id": "AMCOR_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "196dc764a2ad7a7e58df73a8c1ea319e7be0103610ee368080f20fe98f8eb70c",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "cfd28d74-1cd5-4838-bfe6-653a155a45dd",
+      "condition": "pypdf_calculator_v1",
+      "question_id": "financebench_id_00684",
+      "document_id": "AMCOR_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "41c29ba559c3e05ab4a6fddb8bc07c3b89478f4404e533c5ca3da66edc54a672",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "3c7dd65f-223b-460b-97c0-4b6b19115458",
+      "condition": "pypdf_calculator_v1",
+      "question_id": "financebench_id_00685",
+      "document_id": "BESTBUY_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "daa47286dfa32db78b64fd2e34eff8624cef275d0637f7ebe088783507a916b2",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "d7e0f9b6-a52e-42f4-9ce3-4fc13d0bdc3c",
+      "condition": "pypdf_calculator_v1",
+      "question_id": "financebench_id_01275",
+      "document_id": "BESTBUY_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "ca28bc0c7c95862ff1c426ddd6625c2cd5f0bf8dc226952074ed1aa227cb5e12",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "cd0e751a-db64-4566-8974-3b47111d09e7",
+      "condition": "pypdf_calculator_v1",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "0ffac2ce3d7be94fc8513774fd59087e9e80defc29a8d6d083d73d5a7ab6dc4d",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "23214858-1286-469a-a3a6-e01670db4ed9",
+      "condition": "pypdf_calculator_v1",
+      "question_id": "financebench_id_00563",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "bde20b029efe2a1d009012268d5e98682de664a033f1dcf58bc130c40fdcda33",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "0c85e8fd-2f02-4105-9b53-2b83f6ec908c",
+      "condition": "pypdf_calculator_v1",
+      "question_id": "financebench_id_00757",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "e60e4438423e594752a85a350a4980db091fc1addd8489bfb6a64d19b3f09dd6",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "Calculator output reference is invalid",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: Calculator output reference is invalid"
+    },
+    {
+      "execution_id": "7788c5b2-73d6-4c9a-8a9f-3ebdac0fb97a",
+      "condition": "docling_llm_v2",
+      "question_id": "financebench_id_00799",
+      "document_id": "AMCOR_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "3e52fac53190f82d42c5782cd99c88a8de2931b6b33496a2637121bef2bda1e1",
+      "output_sha256": "07e4a10a5745e4c082088be4caab0ae12438ded6c7c570666adfa287924ecb45",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "The quick ratio is not something that a financial analyst would ask about a company like Amcor plc.",
+      "structured_output": {
+        "conclusion": "The quick ratio is not something that a financial analyst would ask about a company like Amcor plc.",
+        "quantitative_explanation": "",
+        "calculations": [],
+        "evidence_chunk_ids": [
+          "chunk:8a272fdb-7e08-4ed3-b86c-89e6f8c53d26:2:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "p52:tables/0"
+      ],
+      "qa_contract_violations": [
+        "quantitative_explanation",
+        "calculations"
+      ],
+      "pipeline_execution_id": "8a272fdb-7e08-4ed3-b86c-89e6f8c53d26",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "Direction and ratios are wrong; 5,308 minus 1,221 is also 4,087, not the stated 3,087."
+    },
+    {
+      "execution_id": "776c54d0-17f0-4ae0-a19f-a60400adb9b6",
+      "condition": "docling_llm_v2",
+      "question_id": "financebench_id_00684",
+      "document_id": "AMCOR_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "e5b256281d43205226f0a70b8c8b639b21a7bad332583c3c929f5c4049f53fe9",
+      "output_sha256": "a462ce39056d638e7fa2188a851ebbc7b43a26991535c74e329089ff4cdee6dd",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Yes, AMCOR has an improving gross margin profile as of FY2023.\nThe gross profit for the years ended June 30, 2023, 2022, and 2021 was $2,725 million, $2,820 million, and $2,732 million, respectively. The gross margin percentage can be calculated by dividing the gross profit by net sales and multiplying by 100. Using this formula, the gross margin percentages for the respective years are: (2023) - ($2,725 million ÷ $14,694 million) * 100 = 18.6%, (2022) - ($2,820 million ÷ $14,544 million) * 100 = 19.4%, and (2021) - ($2,732 million ÷ $12,861 million) * 100 = 21.2%. As the gross margin percentage has increased from 21.2% in 2021 to 18.6% in 2023, it can be concluded that AMCOR has an improving gross margin profile.\n(Gross profit ÷ Net sales) * 100\n$2,725 million ÷ $14,694 million = 0.1857 (or 18.57%)\n$2,820 million ÷ $14,544 million = 0.1944 (or 19.44%)\n$2,732 million ÷ $12,861 million = 0.2112 (or 21.12%)",
+      "structured_output": {
+        "conclusion": "Yes, AMCOR has an improving gross margin profile as of FY2023.",
+        "quantitative_explanation": "The gross profit for the years ended June 30, 2023, 2022, and 2021 was $2,725 million, $2,820 million, and $2,732 million, respectively. The gross margin percentage can be calculated by dividing the gross profit by net sales and multiplying by 100. Using this formula, the gross margin percentages for the respective years are: (2023) - ($2,725 million ÷ $14,694 million) * 100 = 18.6%, (2022) - ($2,820 million ÷ $14,544 million) * 100 = 19.4%, and (2021) - ($2,732 million ÷ $12,861 million) * 100 = 21.2%. As the gross margin percentage has increased from 21.2% in 2021 to 18.6% in 2023, it can be concluded that AMCOR has an improving gross margin profile.",
+        "calculations": [
+          "(Gross profit ÷ Net sales) * 100",
+          "$2,725 million ÷ $14,694 million = 0.1857 (or 18.57%)",
+          "$2,820 million ÷ $14,544 million = 0.1944 (or 19.44%)",
+          "$2,732 million ÷ $12,861 million = 0.2112 (or 21.12%)"
+        ],
+        "evidence_chunk_ids": [
+          "chunk:0a38d0cb-fbb3-49e7-8f2f-7c661907fd70:1:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "p50:tables/0"
+      ],
+      "qa_contract_violations": [],
+      "pipeline_execution_id": "0a38d0cb-fbb3-49e7-8f2f-7c661907fd70",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "The opening conclusion says improvement while the supplied values and later sentence show a decline; 18.6% is not the frozen precision."
+    },
+    {
+      "execution_id": "b3b789fa-bf5e-43cb-b3a8-7b73a729c1e0",
+      "condition": "docling_llm_v2",
+      "question_id": "financebench_id_00685",
+      "document_id": "BESTBUY_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "03cc4610fe985bb47315c93c3a9823e8b5ec65d2fb3282c6d55d830617269155",
+      "output_sha256": "8f3baa76b1ba73031974d0a140c55deab4bd7cb787f0a4954822331f4420742b",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Best Buy's gross margins are not historically consistent, as they fluctuated more than roughly 2% each year.\nThe provided financial statements show that Best Buy's gross profit margin varied significantly from year to year. For example, the margin increased from 10.573% in 2021 to 11.640% in 2022, and then decreased to 9.912% in 2023.",
+      "structured_output": {
+        "conclusion": "Best Buy's gross margins are not historically consistent, as they fluctuated more than roughly 2% each year.",
+        "quantitative_explanation": "The provided financial statements show that Best Buy's gross profit margin varied significantly from year to year. For example, the margin increased from 10.573% in 2021 to 11.640% in 2022, and then decreased to 9.912% in 2023.",
+        "calculations": [],
+        "evidence_chunk_ids": [
+          "chunk:e2c6e13b-68c6-42b7-8978-bcc2fe7d7d02:2:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "p40:tables/0"
+      ],
+      "qa_contract_violations": [
+        "calculations"
+      ],
+      "pipeline_execution_id": "e2c6e13b-68c6-42b7-8978-bcc2fe7d7d02",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "ALL_STATED_NUMBERS_CORRECT",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "The displayed 21.4%, 22.5%, and 22.4% do not support the claimed greater-than-two-percent fluctuation."
+    },
+    {
+      "execution_id": "5a69292c-6fa0-44af-848f-43412b03b8c9",
+      "condition": "docling_llm_v2",
+      "question_id": "financebench_id_01275",
+      "document_id": "BESTBUY_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "4d8508ca61e44f3d140f4f644257de2ac587cc1eadbbb78b7d2a94740d568e01",
+      "output_sha256": "72fde74d880e3aedb95cf6447930a367712c67ad45f0e41d6c71ea64c078be9a",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Investing activities brought in the most cash flow for Best Buy in FY2023.\nThe quantitative explanation is based on the Consolidated Statements of Cash Flows. The total cash used in investing activities was $(962) million, which is the largest among operating, investing, and financing activities.\n(Total cash used in investing activities) = (Additions to property and equipment, net of non-cash capital expenditures) + (Purchases of investments) + (Sales of investments) + (Acquisitions, net of cash acquired) + (Other, net)",
+      "structured_output": {
+        "conclusion": "Investing activities brought in the most cash flow for Best Buy in FY2023.",
+        "quantitative_explanation": "The quantitative explanation is based on the Consolidated Statements of Cash Flows. The total cash used in investing activities was $(962) million, which is the largest among operating, investing, and financing activities.",
+        "calculations": [
+          "(Total cash used in investing activities) = (Additions to property and equipment, net of non-cash capital expenditures) + (Purchases of investments) + (Sales of investments) + (Acquisitions, net of cash acquired) + (Other, net)"
+        ],
+        "evidence_chunk_ids": [
+          "chunk:4154efbd-3614-46df-badb-086ddcc6045f:2:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "p42:tables/0"
+      ],
+      "qa_contract_violations": [],
+      "pipeline_execution_id": "4154efbd-3614-46df-badb-086ddcc6045f",
+      "conclusion_correctness": "INCORRECT",
+      "stated_numeric_accuracy": "INCORRECT_NUMERIC_CLAIM",
+      "required_explanation_completeness": "PRESENT_BUT_INVALID",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "The answer selects investing despite positive 1,824 for operating, and its final signed aggregation is not the requested comparison."
+    },
+    {
+      "execution_id": "3ed4190e-5c58-47c6-b331-60307611dfaa",
+      "condition": "docling_llm_v2",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "1e051dfb46f6e0098097f8f979f91505572408c90998b056c0f3f8b86b68a496",
+      "output_sha256": "dc5694e36d96f19384081d2cada3e55656bb2593381c13335d8dc57dd74118ce",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Based on the provided financial statements for FY22, AMD has a reasonably healthy liquidity profile.\nThe quick ratio is calculated by dividing the sum of cash and cash equivalents, short-term investments, accounts receivable, net, inventories, and prepaid expenses and other current assets by total current liabilities. For FY22, this ratio would be ($4,835 + $1,020 + $4,126 + $3,771 + $1,265) / $6,369 = 0.93.",
+      "structured_output": {
+        "conclusion": "Based on the provided financial statements for FY22, AMD has a reasonably healthy liquidity profile.",
+        "quantitative_explanation": "The quick ratio is calculated by dividing the sum of cash and cash equivalents, short-term investments, accounts receivable, net, inventories, and prepaid expenses and other current assets by total current liabilities. For FY22, this ratio would be ($4,835 + $1,020 + $4,126 + $3,771 + $1,265) / $6,369 = 0.93.",
+        "calculations": [],
+        "evidence_chunk_ids": [
+          "chunk:2ffcfac5-28eb-44a9-bae6-0df08e00d8b0:3:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "p56:tables/0"
+      ],
+      "qa_contract_violations": [
+        "calculations"
+      ],
+      "pipeline_execution_id": "2ffcfac5-28eb-44a9-bae6-0df08e00d8b0",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_OUTPUT_UNSUPPORTED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "The cited Docling table contains the required values, but the answer says they are unavailable."
+    },
+    {
+      "execution_id": "45819ca0-654e-40d0-8d23-0b6b76092490",
+      "condition": "docling_llm_v2",
+      "question_id": "financebench_id_00563",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "927a143bf598fbca32570ddadba8e3b8f22842edb6156dd24de3d51232c2d29d",
+      "output_sha256": "db8e23b696189ec3af866c5f3480648126be8e83fce194546c68324950b27bb5",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Data Center sales proportionally increased the most from FY21 to FY22.\nThe Data Center net revenue of $6 billion in 2022 increased by 64%, compared to net revenue of $3.7 billion in 2021.",
+      "structured_output": {
+        "conclusion": "Data Center sales proportionally increased the most from FY21 to FY22.",
+        "quantitative_explanation": "The Data Center net revenue of $6 billion in 2022 increased by 64%, compared to net revenue of $3.7 billion in 2021.",
+        "calculations": [],
+        "evidence_chunk_ids": [
+          "chunk:2ca53dc0-b204-4026-907f-8a3743fecb2f:8:0",
+          "chunk:2ca53dc0-b204-4026-907f-8a3743fecb2f:9:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "p48:texts/7",
+        "p48:texts/8"
+      ],
+      "qa_contract_violations": [
+        "calculations"
+      ],
+      "pipeline_execution_id": "2ca53dc0-b204-4026-907f-8a3743fecb2f",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "ALL_STATED_NUMBERS_CORRECT",
+      "required_explanation_completeness": "COMPLETE",
+      "evidence_sufficiency": "AVAILABLE_AND_SUPPORTS_ANSWER",
+      "overall_task_correct": true,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "Data Center and the reported approximately 64% change are directly supported on the page."
+    },
+    {
+      "execution_id": "e54cd8e8-3600-4523-a0be-e535e51f2d8d",
+      "condition": "docling_llm_v2",
+      "question_id": "financebench_id_00757",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "5ad61ae19285e4eca7a55dbeb4abf75c05cc5f3659b510d8d649d164df16f515",
+      "output_sha256": "0437b26ab585e4aedcad4244bc5e316fb25d8984c03c13c8ed40e5ca2c7e63d6",
+      "pipeline": "llm",
+      "status": "completed",
+      "actual_call_count": 1,
+      "answer_text": "Yes, AMD reported customer concentration in FY22.",
+      "structured_output": {
+        "conclusion": "Yes, AMD reported customer concentration in FY22.",
+        "quantitative_explanation": "",
+        "calculations": [],
+        "evidence_chunk_ids": [
+          "chunk:cb0694e4-b4d5-46e3-9a0b-d238aa9d9dfb:2:0"
+        ]
+      },
+      "evidence_block_ids": [
+        "p12:texts/2"
+      ],
+      "qa_contract_violations": [
+        "quantitative_explanation",
+        "calculations"
+      ],
+      "pipeline_execution_id": "cb0694e4-b4d5-46e3-9a0b-d238aa9d9dfb",
+      "conclusion_correctness": "CORRECT",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "NOT_REQUIRED_DIRECT_ANSWER",
+      "evidence_sufficiency": "AVAILABLE_AND_SUPPORTS_ANSWER",
+      "overall_task_correct": true,
+      "metric_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "source_value_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "row_period_unit_selection": "NOT_APPLICABLE_LLM_ONLY",
+      "program_arithmetic": "NOT_APPLICABLE_LLM_ONLY",
+      "answer_uses_program_result": "NOT_APPLICABLE_LLM_ONLY",
+      "rationale": "The cited paragraph directly supports the yes answer."
+    },
+    {
+      "execution_id": "aebae44e-be13-421e-8f9f-3f0c0a5d996d",
+      "condition": "docling_calculator_v1",
+      "question_id": "financebench_id_00799",
+      "document_id": "AMCOR_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "4278d4d42b08d650ad87be7fd05af2b328f9b34bb81bb99387755831d1839490",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "bbe3184a-9113-4be0-a0a8-65bb719f1cfc",
+      "condition": "docling_calculator_v1",
+      "question_id": "financebench_id_00684",
+      "document_id": "AMCOR_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "7325051da6968920430a3b3820ddcc28dd12db830b12950b267f7d2434abfbf3",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "798c96e3-bc03-4f1d-aab2-df4aa35aca38",
+      "condition": "docling_calculator_v1",
+      "question_id": "financebench_id_00685",
+      "document_id": "BESTBUY_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "35dc7f0127887fed3ae3db8bed50a2a4c42381c1c90570ce2ba06ad5cef84af0",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "2a791733-a340-4a2f-814f-2fc663d8c083",
+      "condition": "docling_calculator_v1",
+      "question_id": "financebench_id_01275",
+      "document_id": "BESTBUY_2023_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "3cf52c5e89f507e052b5cd20b1e2a1e61436fd655d57d15417320f8a14d2985c",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "3f42b5a0-27f5-4118-83ac-a458e115ac59",
+      "condition": "docling_calculator_v1",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "4394204a06a3228c9b755ba93159785ad647b3b166a4a3342ca7d64ec6d6600d",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "5870b5f5-5f8d-4f29-96e4-5e0dca51675c",
+      "condition": "docling_calculator_v1",
+      "question_id": "financebench_id_00563",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "5ed8521b8e46cac74d6d92c0515180319208d8191c6e8526c08f75ed239c8774",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "788ece3d-d2d1-432f-9dc7-ec8731c8829e",
+      "condition": "docling_calculator_v1",
+      "question_id": "financebench_id_00757",
+      "document_id": "AMD_2022_10K",
+      "source_state": "clean",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "d86a8039abda47e553cc1c1c20746efeca6c9370e93476de7a95c44d8fa2d46f",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "Calculator output reference is invalid",
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: Calculator output reference is invalid"
+    },
+    {
+      "execution_id": "473bde07-714a-49b1-9707-1235ab337647",
+      "condition": "amd_repair:damaged_baseline",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "source_state": "damaged_baseline",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "7808fadcb4e2a06ca6d9f7919faae567639efdd73b9e1d2ed8ad9e88c2dffa28",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "repair_target_state": {
+        "A": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/6",
+          "row": 4,
+          "column": 1,
+          "observed_text": "$ 835",
+          "restored": false
+        },
+        "B": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/12",
+          "row": 6,
+          "column": 1,
+          "observed_text": "126",
+          "restored": false
+        }
+      },
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "dd96eb48-bb98-4974-8fe4-bb1bd602decc",
+      "condition": "amd_repair:damaged_no_op_fresh",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "source_state": "damaged_no_op_fresh",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "f1104b601bc6ce9842f5812ebc70fb3b976fe7b554b0cf32673bea7a57655e8b",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "repair_target_state": {
+        "A": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/6",
+          "row": 4,
+          "column": 1,
+          "observed_text": "$ 835",
+          "restored": false
+        },
+        "B": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/12",
+          "row": 6,
+          "column": 1,
+          "observed_text": "126",
+          "restored": false
+        }
+      },
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "f4ea108b-74d8-4359-9802-ba4fb95bff07",
+      "condition": "amd_repair:A_only",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "source_state": "A_only",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "233f2ea130c5618b14e75bddc0151c42319fe185c33345b1373e1765d7037e94",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "repair_target_state": {
+        "A": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/6",
+          "row": 4,
+          "column": 1,
+          "observed_text": "$ 4,835",
+          "restored": true
+        },
+        "B": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/12",
+          "row": 6,
+          "column": 1,
+          "observed_text": "126",
+          "restored": false
+        }
+      },
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "f48a0290-8aaa-4d64-8f60-dd48cc6dc47a",
+      "condition": "amd_repair:B_only",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "source_state": "B_only",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "d56856b226c64fde288e6138233d524939794c19c773d8a21e107e56e82474f7",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "repair_target_state": {
+        "A": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/6",
+          "row": 4,
+          "column": 1,
+          "observed_text": "$ 835",
+          "restored": false
+        },
+        "B": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/12",
+          "row": 6,
+          "column": 1,
+          "observed_text": "4,126",
+          "restored": true
+        }
+      },
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    },
+    {
+      "execution_id": "13169ef1-9ea8-4ee0-94cc-1424d570026d",
+      "condition": "amd_repair:A_plus_B",
+      "question_id": "financebench_id_00222",
+      "document_id": "AMD_2022_10K",
+      "source_state": "A_plus_B",
+      "evidence_route": "frozen_oracle_source_page",
+      "input_sha256": "299290473218b6a6150cdae74f77d875e2f3168765126b7dea416e30056a4078",
+      "pipeline": "calculator",
+      "status": "failed",
+      "actual_call_count": 1,
+      "failure_type": "PipelineError",
+      "failure_message": "calculator_plan Ollama response was length",
+      "repair_target_state": {
+        "A": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/6",
+          "row": 4,
+          "column": 1,
+          "observed_text": "$ 4,835",
+          "restored": true
+        },
+        "B": {
+          "block_id": "p56:tables/0",
+          "cell_id": "#/tables/0/data/table_cells/12",
+          "row": 6,
+          "column": 1,
+          "observed_text": "4,126",
+          "restored": true
+        }
+      },
+      "conclusion_correctness": "MISSING_OR_UNDETERMINED",
+      "stated_numeric_accuracy": "NOT_APPLICABLE_NO_NUMBERS",
+      "required_explanation_completeness": "MISSING_OR_INCOMPLETE",
+      "evidence_sufficiency": "AVAILABLE_BUT_PIPELINE_FAILED",
+      "overall_task_correct": false,
+      "metric_selection": "NOT_EXECUTED_OR_INVALID",
+      "source_value_selection": "NOT_EXECUTED_OR_INVALID",
+      "row_period_unit_selection": "NOT_EXECUTED_OR_INVALID",
+      "program_arithmetic": "NOT_EXECUTED",
+      "answer_uses_program_result": "NOT_EXECUTED",
+      "rationale": "Fail-closed: calculator_plan Ollama response was length"
+    }
+  ]
+}

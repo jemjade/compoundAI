@@ -437,3 +437,72 @@ oracle 모두 완전 정답 2/7이었고 통제 AMD quick-ratio 수정은 완전
 독립 평가 문서/규칙은 `research/specs/independent_evaluation_protocol_v1.json`에 성능
 확인 전에 고정되어 있다. 소스 스냅샷까지만 준비됐으며 reference audit, injection
 manifest, dependency-structure gate를 통과하기 전에는 정책 성능 실행을 시작하지 않는다.
+
+## v1.4 오픈소스 parser와 계산 도구 개발 진단
+
+v1.4 연구 경로에는 Synap 서버·API 키·라이선스가 필요하지 않다. Docling 2.126.0을
+주 parser, PP-StructureV3(paddleocr 3.7.0, paddlepaddle 3.3.1)을 비교 parser로 고정했다.
+PyMuPDF와 pypdf는 텍스트 추출 기준이며 표 parser로 해석하지 않는다. 페이지 지정은
+검색을 제외한 oracle-source-page 개발 진단이고 전체 RAG 성능이 아니다.
+
+실제 parser 실행은 다음과 같다. 환경 경로는 설치 위치에 맞게 바꿀 수 있지만 package,
+모델 옵션, CPU, 페이지 목록은 `research/specs/experiment_spec_v1_4.json`과 같아야 한다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.open_source_parser_v1_4 \
+  --parser docling \
+  --spec research/specs/experiment_spec_v1_4.json \
+  --source-dir research/work/financebench-source/pdfs \
+  --output research/work/open-source-parser-v1_4-docling-run-007 \
+  --docling-executable /private/tmp/compoundai-docling-v1_4/bin/docling
+
+PYTHONPATH=backend:. /private/tmp/compoundai-paddle-v1_4/bin/python \
+  -m research.open_source_parser_v1_4 \
+  --parser pp-structure-v3 \
+  --spec research/specs/experiment_spec_v1_4.json \
+  --source-dir research/work/financebench-source/pdfs \
+  --output research/work/open-source-parser-v1_4-pp-structure-v3-run-012 \
+  --paddle-cache research/work/model-cache/paddlex-v1_4
+```
+
+각 parser는 raw JSON과 `CanonicalDocument`를 별도로 남긴다. 문서·원본 페이지·표·셀 ID,
+행/열 index, span, 제공된 bbox와 좌표 원점을 보존한다. Paddle HTML cell과
+`cell_box_list`의 순차 대응은 검증되지 않았다고 표시하며, 중간 raster 배열은 JSON에
+포함하지 않고 명시적 생략 레코드로 바꾼다. 파서 셀 비교는 다음처럼 실행한다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.parser_alignment_v1_4 \
+  --docling-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --paddle-dir research/work/open-source-parser-v1_4-pp-structure-v3-run-012 \
+  --output research/work/parser-alignment-v1_4-run-015.json
+```
+
+QA 사전 점검과 실행 명령은 다음과 같다. 계산 도구 pipeline은 LLM planner가 현재
+evidence source ID와 일반 지표 정의를 고르고, 프로그램이 Decimal 산술을 실행한 뒤,
+answerer가 계산 결과와 source ID만 보고 답하도록 분리한다. 질문 ID나 문서명별 정답
+계획은 없다. `--prior-calls`는 실패 응답 로깅 결함으로 중단된 run-014의 27회도 이번
+작업의 60회 상한에 포함하기 위한 복구 실행 인수다.
+
+```bash
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_4 preflight \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_4.json \
+  --config research/configs/dependency_aware_pilot_llama3_parser_calculator_v1_4.json \
+  --max-calls 60
+
+PYTHONPATH=backend:. backend/.venv/bin/python -m research.development_v1_4 run \
+  --data-dir research/work/financebench-development-v1_3 \
+  --parser-dir research/work/open-source-parser-v1_4-docling-run-007 \
+  --spec research/specs/experiment_spec_v1_4.json \
+  --config research/configs/dependency_aware_pilot_llama3_parser_calculator_v1_4.json \
+  --max-calls 60 --prior-calls 27 \
+  --output research/work/dependency-aware-pilot-v1_4-parser-calculator-run-016
+```
+
+실제 결과는 `research/results/dependency-aware-pilot-v1_4-parser-calculator-run-016-summary.json`과
+`research/reports/dependency-aware-pilot-v1_4-parser-calculator-run-016.md`에 있다. pypdf 및
+Docling 기존 QA는 각각 완전 정답 2/7(Primary 2/6)이었다. 계산 도구 19개 실행은 planner
+길이 초과 17건과 잘못된 output reference 2건으로 모두 답변 전에 실패했다. 그러므로
+계산 실행기 구현은 `IMPLEMENTED`, live 계산·출처 chain은 `BLOCKED`, 수정 효과는
+`BLOCKED`다. 실패를 0 복구로 바꾸어 해석하지 않는다.

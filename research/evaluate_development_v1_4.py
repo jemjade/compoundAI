@@ -72,6 +72,53 @@ def _aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _compact_record(record: dict[str, Any]) -> dict[str, Any]:
+    row = {
+        key: record.get(key)
+        for key in (
+            "execution_id",
+            "condition",
+            "question_id",
+            "document_id",
+            "source_state",
+            "evidence_route",
+            "input_sha256",
+            "output_sha256",
+            "pipeline",
+            "status",
+            "actual_call_count",
+            "failure_type",
+            "failure_message",
+            "repair_target_state",
+        )
+        if record.get(key) is not None
+    }
+    response = record.get("response")
+    if not isinstance(response, dict):
+        return row
+    if record["pipeline"] == "llm":
+        answer = response["answers"][0]
+        row.update(
+            {
+                "answer_text": answer["answer"],
+                "structured_output": answer["structured_output"],
+                "evidence_block_ids": answer["evidence_block_ids"],
+                "qa_contract_violations": answer.get("qa_contract_violations", []),
+                "pipeline_execution_id": response["metadata"]["pipeline_execution_id"],
+            }
+        )
+    else:
+        row.update(
+            {
+                "answer_text": response["answer_text"],
+                "plan": response["plan"],
+                "calculation": response["calculation"],
+                "dependency_edges": response["dependency_edges"],
+            }
+        )
+    return row
+
+
 def evaluate(run_dir: Path, judgments_path: Path, output: Path) -> dict[str, Any]:
     if output.exists():
         raise ValueError("Evaluation output exists; use a new path")
@@ -106,7 +153,7 @@ def evaluate(run_dir: Path, judgments_path: Path, output: Path) -> dict[str, Any
         judgment = (
             keyed[key] if record["status"] == "completed" else _failed_judgment(record)
         )
-        merged.append({**record, **judgment})
+        merged.append({**_compact_record(record), **judgment})
     aggregates = {}
     for condition in sorted(CONDITIONS):
         rows = [row for row in merged if row["condition"] == condition]
