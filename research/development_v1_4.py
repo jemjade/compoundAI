@@ -195,6 +195,7 @@ def preflight(
     spec_path: Path,
     config_path: Path,
     max_calls: int,
+    prior_calls: int = 0,
 ) -> dict[str, Any]:
     spec = _load(spec_path)
     if (
@@ -209,6 +210,8 @@ def preflight(
         raise ValueError("Frozen call plan changed")
     if max_calls != 60:
         raise ValueError("v1.4 hard call limit must be exactly 60")
+    if prior_calls < 0 or prior_calls >= max_calls:
+        raise ValueError("prior_calls must preserve a positive remaining call budget")
     config = RunnerConfig.load(config_path)
     if (
         config.model != "llama3:latest"
@@ -238,6 +241,8 @@ def preflight(
         "repair_calls": repair_calls,
         "expected_calls": base_calls + repair_calls,
         "hard_limit": max_calls,
+        "prior_preserved_calls": prior_calls,
+        "remaining_call_budget": max_calls - prior_calls,
         "within_budget": base_calls + repair_calls <= max_calls,
         "pypdf_block_count": sum(len(rows) for rows in pypdf.values()),
         "docling_block_count": sum(len(rows) for rows in docling.values()),
@@ -267,6 +272,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         spec_path=args.spec,
         config_path=args.config,
         max_calls=args.max_calls,
+        prior_calls=args.prior_calls,
     )
     if not plan["within_budget"] or plan["base_calls"] != 42:
         raise ValueError("Frozen v1.4 preflight failed")
@@ -305,7 +311,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     write_json(args.output / "frozen_spec.json", spec)
     write_json(args.output / "frozen_config.json", _load(args.config))
     write_json(args.output / "model_inventory.json", _inventory(config))
-    generator = BudgetedOllamaGenerator(config, args.output / "calls", args.max_calls)
+    generator = BudgetedOllamaGenerator(
+        config, args.output / "calls", plan["remaining_call_budget"]
+    )
     records_path = args.output / "records.jsonl"
     inputs_path = args.output / "inputs.jsonl"
     conditions = [
@@ -432,6 +440,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "status": "complete",
             "finished_at": datetime.now(UTC).isoformat(),
             "completed_model_calls": generator.call_count,
+            "cumulative_model_calls_including_preserved_prior_run": (
+                plan["prior_preserved_calls"] + generator.call_count
+            ),
             "completed_pipeline_executions": execution_count,
             "inputs_sha256": sha256(inputs_path.read_bytes()),
             "records_sha256": sha256(records_path.read_bytes()),
@@ -452,6 +463,7 @@ def main() -> None:
         child.add_argument("--spec", type=Path, required=True)
         child.add_argument("--config", type=Path, required=True)
         child.add_argument("--max-calls", type=int, default=60)
+        child.add_argument("--prior-calls", type=int, default=0)
         if name == "run":
             child.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -462,6 +474,7 @@ def main() -> None:
             spec_path=args.spec,
             config_path=args.config,
             max_calls=args.max_calls,
+            prior_calls=args.prior_calls,
         )
         if args.command == "preflight"
         else run(args)
